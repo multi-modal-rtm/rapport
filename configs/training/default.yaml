@@ -1,0 +1,8 @@
+lr: 1e-4
+batch_size: 16
+dropout: 0.5
+focal_gamma: 3.0
+max_epochs: 100
+early_stop_patience: 10
+grad_clip: 1.0
+num_workers: 4

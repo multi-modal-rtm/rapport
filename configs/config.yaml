@@ -1,0 +1,23 @@
+defaults:
+  - experiment: A_baseline
+  - data: meld
+  - training: default
+  - _self_
+
+seed: 42
+
+run_name: ${experiment.name}_seed${seed}
+
+paths:
+  root_dir: ${hydra:runtime.cwd}
+  data_dir: ${paths.root_dir}/data
+  output_dir: ${hydra:runtime.output_dir}
+
+hydra:
+  run:
+    dir: outputs/${run_name}
+  sweep:
+    dir: outputs/multirun/${now:%Y-%m-%d_%H-%M-%S}
+    subdir: ${run_name}
+  job:
+    chdir: false

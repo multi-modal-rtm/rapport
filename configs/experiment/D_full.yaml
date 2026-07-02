@@ -1,0 +1,3 @@
+name: D_full
+temporal_attention: true
+lora: true
