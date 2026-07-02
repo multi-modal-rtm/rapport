@@ -1,6 +1,6 @@
 import torch
 
-from socialarcnet.seed import set_seed
+from rapport.seed import set_seed
 
 
 def test_set_seed_reproducible():

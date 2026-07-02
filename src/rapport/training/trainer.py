@@ -15,11 +15,11 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-from socialarcnet.data import MELDCachedDataset, collate_dialogues
-from socialarcnet.data.constants import EMOTION_LABELS
-from socialarcnet.eval.report import evaluate_and_report
-from socialarcnet.models.social_gnn import SocialGNN
-from socialarcnet.training.losses import FocalLoss
+from rapport.data import MELDCachedDataset, collate_dialogues
+from rapport.data.constants import EMOTION_LABELS
+from rapport.eval.report import evaluate_and_report
+from rapport.models.social_gnn import SocialGNN
+from rapport.training.losses import FocalLoss
 
 NUM_CLASSES = len(EMOTION_LABELS)
 

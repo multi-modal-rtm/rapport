@@ -19,8 +19,8 @@ import soundfile as sf
 import torch
 from transformers import RobertaTokenizerFast, Wav2Vec2FeatureExtractor
 
-from socialarcnet.data.cache_constants import AUDIO_TOKEN_MAX_LEN, AUDIO_TOKEN_STRIDE, TEXT_TOKEN_MAX_LEN
-from socialarcnet.models.backbones import MViTv2Backbone, RobertaBackbone, Wav2Vec2Backbone
+from rapport.data.cache_constants import AUDIO_TOKEN_MAX_LEN, AUDIO_TOKEN_STRIDE, TEXT_TOKEN_MAX_LEN
+from rapport.models.backbones import MViTv2Backbone, RobertaBackbone, Wav2Vec2Backbone
 
 SPLITS = ("train", "dev", "test")
 CACHE_SUBDIRS = ("video", "audio", "text", "video_tokens", "audio_tokens", "text_tokens")

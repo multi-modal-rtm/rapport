@@ -28,7 +28,7 @@ import pandas as pd
 import torch
 import torchvision.transforms.v2.functional as TF
 
-from socialarcnet.data.constants import (
+from rapport.data.constants import (
     EMOTION2ID,
     FRAME_MEAN,
     FRAME_SIZE,

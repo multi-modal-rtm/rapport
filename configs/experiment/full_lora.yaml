@@ -1,0 +1,6 @@
+# RAPPORT complete, end-to-end with LoRA-adapted backbones.
+name: full_lora
+relational: true
+shift: true
+temporal: true
+lora: true

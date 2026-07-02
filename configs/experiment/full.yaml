@@ -1,0 +1,6 @@
+# RAPPORT complete: relational (speaker-pair state) + shift + temporal, frozen backbones.
+name: full
+relational: true
+shift: true
+temporal: true
+lora: false

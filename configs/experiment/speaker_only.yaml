@@ -1,0 +1,8 @@
+# v1 architecture (per-speaker GNN, mean-pooling, frozen backbones).
+# Was A_baseline. Retained as the "speaker-centric" ablation baseline for
+# RAPPORT, whose thesis is that relational (speaker-pair) state matters more.
+name: speaker_only
+relational: false
+shift: false
+temporal: false
+lora: false

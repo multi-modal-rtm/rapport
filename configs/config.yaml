@@ -1,5 +1,5 @@
 defaults:
-  - experiment: A_baseline
+  - experiment: speaker_only
   - data: meld
   - training: default
   - _self_

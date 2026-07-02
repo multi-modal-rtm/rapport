@@ -1,0 +1,6 @@
+# Leave-one-out ablation from `full`: relational (speaker-pair state) removed.
+name: minus_relational
+relational: false
+shift: true
+temporal: true
+lora: false

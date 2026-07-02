@@ -1,0 +1,6 @@
+# speaker_only architecture, end-to-end with LoRA-adapted backbones.
+name: speaker_only_lora
+relational: false
+shift: false
+temporal: false
+lora: true

@@ -10,7 +10,7 @@ Given per-utterance frozen V/A/T features, this model:
 
 Utterances must be processed in dialogue order (never shuffled) since each
 step's graph state depends on all prior steps — MELDCachedDataset/collate
-already guarantee this (see socialarcnet.data.meld module docstring).
+already guarantee this (see rapport.data.meld module docstring).
 """
 
 from __future__ import annotations

@@ -7,8 +7,8 @@ import pandas as pd
 import pytest
 import torch
 
-from socialarcnet.data import MELDCachedDataset, MELDRawDataset, collate_dialogues
-from socialarcnet.data.constants import EMOTION_LABELS, FRAME_SIZE, NUM_FRAMES, SAMPLE_RATE
+from rapport.data import MELDCachedDataset, MELDRawDataset, collate_dialogues
+from rapport.data.constants import EMOTION_LABELS, FRAME_SIZE, NUM_FRAMES, SAMPLE_RATE
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PROCESSED_DIR = PROJECT_ROOT / "data" / "meld" / "processed"

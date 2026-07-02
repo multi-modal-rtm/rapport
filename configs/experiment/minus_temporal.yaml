@@ -1,0 +1,6 @@
+# Leave-one-out ablation from `full`: temporal attention removed.
+name: minus_temporal
+relational: true
+shift: true
+temporal: false
+lora: false

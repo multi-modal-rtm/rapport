@@ -1,0 +1,6 @@
+# Leave-one-out ablation from `full`: shift component removed.
+name: minus_shift
+relational: true
+shift: false
+temporal: true
+lora: false
