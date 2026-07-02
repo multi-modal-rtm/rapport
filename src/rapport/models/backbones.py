@@ -2,9 +2,14 @@
 
 Each wrapper exposes a uniform `forward(...) -> (pooled, tokens)` contract:
   - pooled: [B, 768] — mean over the temporal/sequence dimension for video and
-    audio, the HF pooler ([CLS]) output for text.
+    audio, the <s> (CLS) token of `last_hidden_state` for text.
   - tokens: [B, N, 768] — the full pre-pooling token sequence, kept around for
     the temporal-attention configs (B, D) added in v2.
+
+Text note: `RobertaModel`'s `pooler_output` (Dense+Tanh over the [CLS]
+token) is randomly re-initialized on every process, since `roberta-base`'s
+checkpoint ships without pretrained pooler weights (unlike BERT). We
+deliberately do NOT use it — see `RobertaBackbone` below.
 
 All three are frozen (`requires_grad=False`) in this phase; nothing here calls
 `torch.no_grad()` internally so the same wrappers can be reused, un-frozen,
@@ -98,18 +103,31 @@ class Wav2Vec2Backbone(nn.Module):
 
 
 class RobertaBackbone(nn.Module):
-    """Wraps HF RobertaModel with its pooler ([CLS] -> dense -> tanh) head enabled."""
+    """Wraps HF RobertaModel, using the raw pretrained <s> (CLS) token as the
+    pooled output rather than `pooler_output`.
+
+    `RobertaModel(add_pooling_layer=True)`'s pooler (Dense -> Tanh over the
+    [CLS] hidden state) is randomly re-initialized every process — verified
+    directly in docs/DIAGNOSIS.md: two fresh instances given identical input
+    produce outputs differing by up to 0.93, and a cache built across a
+    crash/resume process boundary showed near-orthogonal (cosine ~0.015)
+    features between segments. `last_hidden_state[:, 0]` is the actual
+    pretrained, deterministic, process-independent <s> token representation
+    and carries no such hazard.
+    """
 
     OUTPUT_DIM = 768
 
     def __init__(self, model_name: str = "roberta-base"):
         super().__init__()
-        self.model = RobertaModel.from_pretrained(model_name, add_pooling_layer=True)
+        self.model = RobertaModel.from_pretrained(model_name, add_pooling_layer=False)
         _freeze(self.model)
 
     def forward(
         self, input_ids: torch.Tensor, attention_mask: torch.Tensor | None = None
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        """input_ids: [B, L] -> pooled [B, 768] (pooler_output), tokens [B, L, 768]."""
+        """input_ids: [B, L] -> pooled [B, 768] (<s> token), tokens [B, L, 768]."""
         outputs = self.model(input_ids=input_ids, attention_mask=attention_mask)
-        return outputs.pooler_output, outputs.last_hidden_state
+        tokens = outputs.last_hidden_state
+        pooled = tokens[:, 0]
+        return pooled, tokens

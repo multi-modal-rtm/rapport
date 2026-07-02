@@ -3,12 +3,24 @@ preprocessed MELD utterance and caches pooled 768-d V/A/T vectors plus their
 pre-pooling token sequences to data/meld/cache/. This serves configs A and B
 (frozen-backbone regime) via MELDCachedDataset.
 
-Audio/text token sequences are variable-length; audio is additionally strided
-and capped (AUDIO_TOKEN_STRIDE, AUDIO_TOKEN_MAX_LEN) since wav2vec2's raw
-feature rate is much finer-grained than needed for later temporal attention.
+Audio is encoded UNBATCHED (one clip at a time, no padding) — see
+docs/DIAGNOSIS.md: wav2vec2's convolutional feature encoder sees padding
+zeros before the attention mask can exclude them, so a clip's cached
+features would otherwise depend on which other clips happened to share its
+batch. Video (fixed frame count, no padding) and text (transformer
+attention masking has no such leakage) are still batched for speed.
+
+Audio/text token sequences are variable-length; audio is additionally
+strided and capped (AUDIO_TOKEN_STRIDE, AUDIO_TOKEN_MAX_LEN) since
+wav2vec2's raw feature rate is much finer-grained than needed for later
+temporal attention.
 """
 
 from __future__ import annotations
+
+import os
+
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
 import argparse
 import time
@@ -32,13 +44,11 @@ def _is_cached(out_dir: Path, split: str, dialogue_id: int, utterance_id: int) -
 
 
 @torch.no_grad()
-def process_batch(
+def process_video_text_batch(
     batch: pd.DataFrame,
     split: str,
     video_backbone: MViTv2Backbone,
-    audio_backbone: Wav2Vec2Backbone,
     text_backbone: RobertaBackbone,
-    audio_feature_extractor: Wav2Vec2FeatureExtractor,
     tokenizer: RobertaTokenizerFast,
     device: torch.device,
     out_dir: Path,
@@ -46,15 +56,6 @@ def process_batch(
     # --- video ---
     frames = torch.stack([torch.load(p, weights_only=True) for p in batch["frame_path"]]).to(device)
     v_pooled, v_tokens = video_backbone(frames)
-
-    # --- audio ---
-    waveforms = [sf.read(p, dtype="float32")[0] for p in batch["wav_path"]]
-    audio_inputs = audio_feature_extractor(
-        waveforms, sampling_rate=16000, padding=True, return_tensors="pt", return_attention_mask=True
-    )
-    audio_attention_mask = audio_inputs["attention_mask"].to(device)
-    a_pooled, a_tokens = audio_backbone(audio_inputs["input_values"].to(device), audio_attention_mask)
-    a_feat_mask = audio_backbone.model._get_feature_vector_attention_mask(a_tokens.shape[1], audio_attention_mask)
 
     # --- text ---
     text_inputs = tokenizer(
@@ -67,26 +68,42 @@ def process_batch(
         stem = f"dia{row.dialogue_id}_utt{row.utterance_id}.pt"
 
         torch.save(v_pooled[i].float().cpu(), out_dir / "video" / split / stem)
-        torch.save(a_pooled[i].float().cpu(), out_dir / "audio" / split / stem)
         torch.save(t_pooled[i].float().cpu(), out_dir / "text" / split / stem)
-
         torch.save(v_tokens[i].float().cpu(), out_dir / "video_tokens" / split / stem)
-
-        a_len = int(a_feat_mask[i].sum().item())
-        a_seq = a_tokens[i, :a_len][::AUDIO_TOKEN_STRIDE][:AUDIO_TOKEN_MAX_LEN]
-        torch.save(a_seq.float().cpu(), out_dir / "audio_tokens" / split / stem)
 
         t_len = int(text_attention_mask[i].sum().item())
         t_seq = t_tokens[i, :t_len]
         torch.save(t_seq.float().cpu(), out_dir / "text_tokens" / split / stem)
 
 
+@torch.no_grad()
+def process_audio_one(
+    wav_path: str,
+    dialogue_id: int,
+    utterance_id: int,
+    split: str,
+    audio_backbone: Wav2Vec2Backbone,
+    audio_feature_extractor: Wav2Vec2FeatureExtractor,
+    device: torch.device,
+    out_dir: Path,
+) -> None:
+    """Encodes a single clip alone (no padding, batch size 1) — see module docstring."""
+    stem = f"dia{dialogue_id}_utt{utterance_id}.pt"
+    wav, _ = sf.read(wav_path, dtype="float32")
+    audio_inputs = audio_feature_extractor(wav, sampling_rate=16000, return_tensors="pt")
+    a_pooled, a_tokens = audio_backbone(audio_inputs["input_values"].to(device))
+
+    torch.save(a_pooled[0].float().cpu(), out_dir / "audio" / split / stem)
+    a_seq = a_tokens[0][::AUDIO_TOKEN_STRIDE][:AUDIO_TOKEN_MAX_LEN]
+    torch.save(a_seq.float().cpu(), out_dir / "audio_tokens" / split / stem)
+
+
 def process_batch_with_retry(batch: pd.DataFrame, split: str, *args, min_chunk: int = 1) -> None:
-    """Runs process_batch, halving the batch on CUDA OOM (retrying after
-    clearing the cache) down to `min_chunk` before giving up.
+    """Runs process_video_text_batch, halving the batch on CUDA OOM (retrying
+    after clearing the cache) down to `min_chunk` before giving up.
     """
     try:
-        process_batch(batch, split, *args)
+        process_video_text_batch(batch, split, *args)
     except torch.cuda.OutOfMemoryError:
         torch.cuda.empty_cache()
         if len(batch) <= min_chunk:
@@ -101,7 +118,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--processed-dir", default="data/meld/processed", type=Path)
     parser.add_argument("--out-dir", default="data/meld/cache", type=Path)
-    parser.add_argument("--batch-size", default=32, type=int)
+    parser.add_argument("--batch-size", default=32, type=int, help="video/text batch size (audio is always 1)")
     parser.add_argument("--splits", nargs="+", default=list(SPLITS))
     args = parser.parse_args()
 
@@ -129,26 +146,28 @@ def main() -> None:
             f"already_cached={len(df) - len(remaining)} remaining={len(remaining)}"
         )
 
-        # Sort by audio duration so within-batch padding (and hence conv1d
-        # activation shapes) stays similar across consecutive batches. Highly
-        # variable padded lengths batch-to-batch were causing CUDA allocator
-        # fragmentation severe enough to exhaust the GPU over a full split.
-        if len(remaining) > 0:
-            durations = remaining["wav_path"].map(lambda p: sf.info(p).duration)
-            remaining = remaining.iloc[durations.argsort().to_numpy()].reset_index(drop=True)
-
         start = time.time()
+
+        # Audio: one clip at a time, no padding, no batching (see module docstring).
+        for i, row in enumerate(remaining.itertuples(index=False)):
+            process_audio_one(
+                row.wav_path, row.dialogue_id, row.utterance_id, split,
+                audio_backbone, audio_feature_extractor, device, args.out_dir,
+            )
+            if (i + 1) % 1000 == 0 or (i + 1) == len(remaining):
+                print(f"[build_feature_cache] {split} audio: {i + 1}/{len(remaining)} ({time.time() - start:.1f}s elapsed)")
+
+        # Video + text: still batched (no padding-leakage hazard for either).
         for batch_start in range(0, len(remaining), args.batch_size):
             batch = remaining.iloc[batch_start : batch_start + args.batch_size]
             process_batch_with_retry(
-                batch, split, video_backbone, audio_backbone, text_backbone,
-                audio_feature_extractor, tokenizer, device, args.out_dir,
+                batch, split, video_backbone, text_backbone, tokenizer, device, args.out_dir,
             )
             torch.cuda.empty_cache()
             done = batch_start + len(batch)
             if done % (args.batch_size * 20) < args.batch_size or done == len(remaining):
                 elapsed = time.time() - start
-                print(f"[build_feature_cache] {split}: {done}/{len(remaining)} ({elapsed:.1f}s elapsed)")
+                print(f"[build_feature_cache] {split} video/text: {done}/{len(remaining)} ({elapsed:.1f}s elapsed)")
 
         print(f"[build_feature_cache] split={split} done in {time.time() - start:.1f}s")
 

@@ -542,3 +542,175 @@ improvement alone is enough to clear the hard floor and get a legitimate
 all unchanged from before this diagnosis started** (aside from the Step 2
 rebuild, which reproduced byte-identical file counts and used the
 already-fixed split-namespaced code — no behavior change).
+
+---
+
+## VERIFICATION (post sign-off) — multi-segment random-projection hypothesis
+
+Hypothesis: since the cache build crashed and resumed multiple times, and
+`roberta-base`'s pooler re-randomizes per process, cached text features
+plausibly live in **multiple mutually-inconsistent random subspaces**
+split at crash/resume boundaries — a stronger, more specific claim than
+"text features are randomly noisy," and one that could specifically explain
+*sub-majority-baseline* test accuracy (a model trained on one random
+subspace would see part of the test set in a subspace it's never seen
+anything resembling).
+
+### Segment boundaries (current cache, from Step 2's rebuild)
+
+`scripts/verify_text_segments.py`: sorted all 13,706 text cache file
+mtimes, looked for gaps > 5s (a same-process batch loop writes files
+milliseconds apart; a gap this large means a new process started).
+
+**Exactly one boundary found:** a 139.3s gap between file #13,704 and
+#13,705. This exactly matches the known build history — Step 2's rebuild
+ran as one process through train, dev, and all but 2 utterances of test,
+crashed (the same tail-of-`test` CUDA OOM documented earlier), and was
+resumed in a second process for the final 2 utterances
+(`test/dia220_utt0`, `test/dia38_utt4`).
+
+- **Segment A:** 13,704 utterances (one process, one random pooler)
+- **Segment B:** 2 utterances (a different process, a different random pooler)
+
+### Cross-segment distribution break — confirmed, dramatically
+
+Sampled 500 text vectors from segment A + both segment B vectors:
+
+| | value |
+|---|---|
+| within-segment-A pairwise cosine similarity | mean **0.9978**, std 0.0015 |
+| across-segment (A vs B) cosine similarity | mean **0.0153**, std 0.0035 |
+| z-score of across-segment mean vs. within-A distribution | **-652.9** |
+
+Segment A's vectors are near-identical to each other in direction (cosine
+≈0.998 — itself a symptom of how degenerate the random-pooler+tanh
+projection is, saturating most inputs toward a similar direction).
+Segment B's vectors are essentially **orthogonal** to segment A's (cosine
+≈0.015, indistinguishable from unrelated random vectors). A 2D PCA
+(`docs/text_segment_pca.png`) makes this visually unambiguous: segment A
+forms a tight cluster (PC1 ∈ [-0.48, 0.12]), segment B's two points sit far
+outside it (PC1 ≈ 8.2 — roughly 20× the width of the entire segment-A
+cluster away).
+
+**Confirmed: this is inconsistency, not mere randomness.** Utterances built
+in different processes don't just have independently-noisy features —
+they live in categorically different, non-overlapping regions of feature
+space.
+
+### Inference about the original failed-run cache (not directly re-verifiable — that cache no longer exists)
+
+The current cache's affected fraction is tiny (2/13,706 utterances, both in
+test) because Step 2's rebuild only needed one small resume. **The cache
+actually used for the original `speaker_only` seed-42 GATE run had a much
+rockier build history** (documented earlier in this session, before this
+diagnosis): that build crashed partway through the `test` split with
+**1,952 of 2,610 test utterances already cached and 658 remaining**
+(subsequently finished across one or more additional resumed processes) —
+i.e. roughly **25% of the test split's text features were plausibly built
+in a different process/random-subspace than the other 75% and the entire
+train split** (which completed in a single uninterrupted process in that
+run). This cache no longer exists (replaced by Step 2's clean rebuild), so
+this can't be re-verified directly — but combined with the dramatic
+effect size just measured (near-orthogonal, not just noisier), it's a
+highly plausible, sharper explanation for the specific *sub-majority-baseline*
+character of the original failure: not merely "the text modality is weak
+noise" (which alone would still usually let a model land at-or-above a
+constant baseline), but "the model learned a mapping from one arbitrary
+random text subspace during training, and roughly a quarter of the test
+set's text features live in a *different, incompatible* subspace it never
+saw anything resembling" — actively adversarial for that slice of test,
+not just uninformative.
+
+### Verification conclusion
+
+Both effects are real and compounding: (1) text features are a per-process
+random projection with weak inherent class signal (Step 3's probe, 0.40),
+and (2) that random projection isn't even stable *within a single cache
+build* whenever the build crashes and resumes — confirmed here with a
+-653 z-score and a clean visual PCA split. Fix 1 (deterministic
+`last_hidden_state[:, 0]`, no pooler) eliminates *both* problems at once:
+no more per-process randomness, and therefore no more cross-segment
+inconsistency regardless of how many times a future build crashes and
+resumes.
+
+---
+
+## FIX STAGE 1 — implemented (text pooler + audio unbatching), cache rebuilt
+
+Approved fixes 1 and 2 implemented (fix 3, video, deferred per sign-off —
+not implemented):
+
+- **Fix 1** (`src/rapport/models/backbones.py`): `RobertaBackbone` now
+  loads with `add_pooling_layer=False` and returns `last_hidden_state[:, 0]`
+  (the raw pretrained `<s>` token) instead of `pooler_output`. New guard
+  test `tests/test_backbones.py::test_roberta_text_features_are_process_independent`
+  asserts two fresh instances produce bit-identical output for identical
+  input — passes.
+- **Fix 2** (`scripts/build_feature_cache.py`): audio is now encoded one
+  clip at a time (batch size 1, no padding); video and text remain
+  batched (no leakage hazard for either — video has no length variability,
+  text's transformer attention masking has no CNN-style receptive-field
+  bleed). New test `tests/test_backbones.py::test_wav2vec2_padding_invariance`
+  is an `xfail(strict=True)`: it asserts alone-vs-padded-batch features
+  *should* be identical, documents that they are not (0.2s synthetic
+  clip, same mechanism as the diagnosed `dia51_utt1` outlier), and exists
+  so a future end-to-end/LoRA path that wants to batch audio again is
+  warned to solve masking properly rather than rediscovering this bug.
+
+### Rebuild — single uninterrupted process, no crash
+
+Deleted `data/meld/cache/` entirely and reran `build_feature_cache.py`
+once, no resume needed:
+
+```
+split=train: audio 9988/9988 in 46.1s, video/text 9988/9988 in 183.4s (total 183.4s)
+split=dev:   audio 1108/1108 in 5.1s,   video/text 1108/1108 in 19.8s  (total 19.8s)
+split=test:  audio 2610/2610 in 12.6s,  video/text 2610/2610 in 47.2s  (total 47.2s)
+all splits complete — 250.4s total, zero crashes, zero resumes
+```
+
+Unbatched audio turned out to be *faster* than the old batched-with-padding
+version, not just more correct — short clips no longer pay the cost of
+padding up to the longest clip in an arbitrary batch of 32.
+
+### Process-independence check — re-encoded in a second process, essentially exact match
+
+`scripts/audit_cache.py`, 20 fresh random samples, different process than
+the one that built the cache:
+
+| modality | max abs diff (pre-fix) | max abs diff (post-fix) |
+|---|---|---|
+| video | 0.000001 | 0.000000 |
+| audio | 1.706103 (11/30 failed allclose) | **0.000000 (0/20 failed)** |
+| text | 1.138753 (30/30 failed allclose) | **0.000004 (0/20 failed)** |
+
+Both fixes confirmed at the source: a second, independent process now
+reproduces the cache to floating-point precision for every modality.
+
+### Post-fix linear probes vs. pre-fix (Step 3)
+
+| modality | pre-fix weighted F1 | post-fix weighted F1 | healthy range | met? |
+|---|---|---|---|---|
+| video | 0.1929 | 0.1931 | 0.33–0.40 | no (unchanged — expected, fix 3 not applied) |
+| audio | 0.2870 | 0.2971 | 0.38–0.45 | **no** — improved (+0.010) but still below range |
+| text | 0.4019 | 0.4269 | ≥ 0.53 | **no** — improved (+0.025) but still well below floor |
+| concat | 0.3815 | 0.4061 | ≥ text | **no** — concat (0.4061) still underperforms text alone (0.4269) |
+
+**Honest reporting, not glossed over:** fixing the two confirmed process-
+level bugs (random/inconsistent text projection, audio padding leakage)
+measurably improved every probe, but **none reach the stated healthy
+range, and concat still underperforms text alone.** Video is unchanged as
+expected (fix 3 deferred). Two non-exclusive readings: (a) there is
+additional feature-quality headroom beyond the two bugs found here — e.g.
+a frozen, non-fine-tuned RoBERTa `<s>` token with no dialogue context may
+simply be a weaker MELD text feature than whatever produced the 0.53
+reference figure, and/or MViTv2's video features may be dragging concat
+down through the same mechanism that makes it the weakest unimodal probe;
+or (b) the linear-probe methodology itself (plain `LogisticRegression`,
+no hyperparameter search) is leaving some accuracy on the table relative
+to whatever produced the reference ranges. Both bugs targeted by this
+sign-off are conclusively fixed and verified; the remaining gap to the
+healthy ranges is a new, open question for the next phase, not something
+this fix stage claimed to close.
+
+**Stopping here per instructions — no retraining, no further probing.**
