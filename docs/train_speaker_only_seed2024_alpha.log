@@ -1,0 +1,41 @@
+[2026-07-03 10:06:57,075][__main__][INFO] - run_name=speaker_only_seed2024
+[2026-07-03 10:06:57,075][__main__][INFO] - experiment.relational=False experiment.shift=False experiment.temporal=False experiment.lora=False
+[epoch 000] loss=0.5245 val_weighted_f1=0.1640 val_macro_f1=0.1418 time=12.0s per_class_f1={'neutral': 0.146, 'joy': 0.118, 'sadness': 0.221, 'anger': 0.146, 'surprise': 0.295, 'fear': 0.066, 'disgust': 0.0}
+[epoch 001] loss=0.5130 val_weighted_f1=0.2964 val_macro_f1=0.2025 time=12.1s per_class_f1={'neutral': 0.424, 'joy': 0.126, 'sadness': 0.212, 'anger': 0.226, 'surprise': 0.316, 'fear': 0.045, 'disgust': 0.068}
+[epoch 002] loss=0.5014 val_weighted_f1=0.1983 val_macro_f1=0.1558 time=12.0s per_class_f1={'neutral': 0.263, 'joy': 0.012, 'sadness': 0.253, 'anger': 0.06, 'surprise': 0.348, 'fear': 0.078, 'disgust': 0.076}
+[epoch 003] loss=0.4844 val_weighted_f1=0.2959 val_macro_f1=0.2170 time=11.9s per_class_f1={'neutral': 0.357, 'joy': 0.148, 'sadness': 0.259, 'anger': 0.327, 'surprise': 0.375, 'fear': 0.0, 'disgust': 0.053}
+[epoch 004] loss=0.4706 val_weighted_f1=0.3607 val_macro_f1=0.2537 time=11.7s per_class_f1={'neutral': 0.479, 'joy': 0.207, 'sadness': 0.199, 'anger': 0.348, 'surprise': 0.408, 'fear': 0.097, 'disgust': 0.037}
+[epoch 005] loss=0.4590 val_weighted_f1=0.3063 val_macro_f1=0.2366 time=11.9s per_class_f1={'neutral': 0.332, 'joy': 0.215, 'sadness': 0.287, 'anger': 0.387, 'surprise': 0.37, 'fear': 0.034, 'disgust': 0.03}
+[epoch 006] loss=0.4478 val_weighted_f1=0.3302 val_macro_f1=0.2396 time=11.8s per_class_f1={'neutral': 0.429, 'joy': 0.173, 'sadness': 0.192, 'anger': 0.321, 'surprise': 0.407, 'fear': 0.092, 'disgust': 0.062}
+[epoch 007] loss=0.4383 val_weighted_f1=0.4109 val_macro_f1=0.2765 time=11.8s per_class_f1={'neutral': 0.585, 'joy': 0.199, 'sadness': 0.156, 'anger': 0.385, 'surprise': 0.443, 'fear': 0.114, 'disgust': 0.053}
+[epoch 008] loss=0.4299 val_weighted_f1=0.3434 val_macro_f1=0.2663 time=11.7s per_class_f1={'neutral': 0.412, 'joy': 0.219, 'sadness': 0.298, 'anger': 0.35, 'surprise': 0.385, 'fear': 0.142, 'disgust': 0.058}
+[epoch 009] loss=0.4259 val_weighted_f1=0.3887 val_macro_f1=0.2936 time=11.8s per_class_f1={'neutral': 0.468, 'joy': 0.305, 'sadness': 0.287, 'anger': 0.377, 'surprise': 0.438, 'fear': 0.12, 'disgust': 0.059}
+[epoch 010] loss=0.4174 val_weighted_f1=0.4099 val_macro_f1=0.2935 time=11.7s per_class_f1={'neutral': 0.546, 'joy': 0.332, 'sadness': 0.297, 'anger': 0.26, 'surprise': 0.43, 'fear': 0.145, 'disgust': 0.045}
+[epoch 011] loss=0.4113 val_weighted_f1=0.3546 val_macro_f1=0.2628 time=11.6s per_class_f1={'neutral': 0.41, 'joy': 0.327, 'sadness': 0.128, 'anger': 0.405, 'surprise': 0.445, 'fear': 0.098, 'disgust': 0.027}
+[epoch 012] loss=0.4035 val_weighted_f1=0.3875 val_macro_f1=0.2888 time=11.5s per_class_f1={'neutral': 0.483, 'joy': 0.295, 'sadness': 0.292, 'anger': 0.376, 'surprise': 0.39, 'fear': 0.123, 'disgust': 0.062}
+[epoch 013] loss=0.3985 val_weighted_f1=0.4391 val_macro_f1=0.3057 time=11.8s per_class_f1={'neutral': 0.593, 'joy': 0.343, 'sadness': 0.239, 'anger': 0.367, 'surprise': 0.426, 'fear': 0.121, 'disgust': 0.052}
+[epoch 014] loss=0.3911 val_weighted_f1=0.4277 val_macro_f1=0.3099 time=11.8s per_class_f1={'neutral': 0.533, 'joy': 0.398, 'sadness': 0.299, 'anger': 0.325, 'surprise': 0.468, 'fear': 0.146, 'disgust': 0.0}
+[epoch 015] loss=0.3879 val_weighted_f1=0.4071 val_macro_f1=0.3010 time=11.8s per_class_f1={'neutral': 0.499, 'joy': 0.343, 'sadness': 0.287, 'anger': 0.373, 'surprise': 0.445, 'fear': 0.117, 'disgust': 0.043}
+[epoch 016] loss=0.3834 val_weighted_f1=0.3818 val_macro_f1=0.3118 time=11.9s per_class_f1={'neutral': 0.408, 'joy': 0.355, 'sadness': 0.322, 'anger': 0.388, 'surprise': 0.471, 'fear': 0.17, 'disgust': 0.069}
+[epoch 017] loss=0.3771 val_weighted_f1=0.3884 val_macro_f1=0.3117 time=11.7s per_class_f1={'neutral': 0.432, 'joy': 0.354, 'sadness': 0.32, 'anger': 0.364, 'surprise': 0.47, 'fear': 0.175, 'disgust': 0.067}
+[epoch 018] loss=0.3717 val_weighted_f1=0.4411 val_macro_f1=0.3263 time=11.4s per_class_f1={'neutral': 0.56, 'joy': 0.348, 'sadness': 0.285, 'anger': 0.394, 'surprise': 0.459, 'fear': 0.171, 'disgust': 0.066}
+[epoch 019] loss=0.3677 val_weighted_f1=0.4143 val_macro_f1=0.3138 time=11.6s per_class_f1={'neutral': 0.503, 'joy': 0.327, 'sadness': 0.292, 'anger': 0.396, 'surprise': 0.462, 'fear': 0.16, 'disgust': 0.057}
+[epoch 020] loss=0.3642 val_weighted_f1=0.3785 val_macro_f1=0.2995 time=11.7s per_class_f1={'neutral': 0.414, 'joy': 0.362, 'sadness': 0.257, 'anger': 0.393, 'surprise': 0.472, 'fear': 0.138, 'disgust': 0.061}
+[epoch 021] loss=0.3600 val_weighted_f1=0.4178 val_macro_f1=0.3162 time=11.6s per_class_f1={'neutral': 0.499, 'joy': 0.388, 'sadness': 0.314, 'anger': 0.353, 'surprise': 0.466, 'fear': 0.153, 'disgust': 0.04}
+[epoch 022] loss=0.3539 val_weighted_f1=0.3985 val_macro_f1=0.3107 time=11.6s per_class_f1={'neutral': 0.457, 'joy': 0.386, 'sadness': 0.312, 'anger': 0.336, 'surprise': 0.47, 'fear': 0.173, 'disgust': 0.041}
+[epoch 023] loss=0.3543 val_weighted_f1=0.4499 val_macro_f1=0.3314 time=11.5s per_class_f1={'neutral': 0.559, 'joy': 0.401, 'sadness': 0.308, 'anger': 0.376, 'surprise': 0.483, 'fear': 0.144, 'disgust': 0.049}
+[epoch 024] loss=0.3480 val_weighted_f1=0.4432 val_macro_f1=0.3295 time=11.8s per_class_f1={'neutral': 0.548, 'joy': 0.391, 'sadness': 0.326, 'anger': 0.36, 'surprise': 0.475, 'fear': 0.169, 'disgust': 0.037}
+[epoch 025] loss=0.3444 val_weighted_f1=0.4099 val_macro_f1=0.3043 time=11.6s per_class_f1={'neutral': 0.5, 'joy': 0.378, 'sadness': 0.24, 'anger': 0.352, 'surprise': 0.473, 'fear': 0.135, 'disgust': 0.051}
+[epoch 026] loss=0.3409 val_weighted_f1=0.4551 val_macro_f1=0.3263 time=11.5s per_class_f1={'neutral': 0.581, 'joy': 0.393, 'sadness': 0.269, 'anger': 0.388, 'surprise': 0.482, 'fear': 0.124, 'disgust': 0.047}
+[epoch 027] loss=0.3368 val_weighted_f1=0.4252 val_macro_f1=0.3106 time=11.6s per_class_f1={'neutral': 0.534, 'joy': 0.391, 'sadness': 0.255, 'anger': 0.336, 'surprise': 0.472, 'fear': 0.145, 'disgust': 0.042}
+[epoch 028] loss=0.3334 val_weighted_f1=0.3754 val_macro_f1=0.2948 time=11.8s per_class_f1={'neutral': 0.404, 'joy': 0.339, 'sadness': 0.315, 'anger': 0.407, 'surprise': 0.458, 'fear': 0.115, 'disgust': 0.026}
+[epoch 029] loss=0.3322 val_weighted_f1=0.4304 val_macro_f1=0.3220 time=11.7s per_class_f1={'neutral': 0.54, 'joy': 0.362, 'sadness': 0.331, 'anger': 0.317, 'surprise': 0.472, 'fear': 0.192, 'disgust': 0.04}
+[epoch 030] loss=0.3293 val_weighted_f1=0.4296 val_macro_f1=0.3230 time=11.6s per_class_f1={'neutral': 0.514, 'joy': 0.356, 'sadness': 0.299, 'anger': 0.428, 'surprise': 0.475, 'fear': 0.148, 'disgust': 0.041}
+[epoch 031] loss=0.3239 val_weighted_f1=0.4407 val_macro_f1=0.3212 time=10.0s per_class_f1={'neutral': 0.547, 'joy': 0.382, 'sadness': 0.297, 'anger': 0.399, 'surprise': 0.467, 'fear': 0.127, 'disgust': 0.03}
+[epoch 032] loss=0.3260 val_weighted_f1=0.4163 val_macro_f1=0.3150 time=10.0s per_class_f1={'neutral': 0.5, 'joy': 0.347, 'sadness': 0.266, 'anger': 0.42, 'surprise': 0.46, 'fear': 0.155, 'disgust': 0.057}
+[epoch 033] loss=0.3187 val_weighted_f1=0.4181 val_macro_f1=0.3157 time=9.0s per_class_f1={'neutral': 0.512, 'joy': 0.358, 'sadness': 0.255, 'anger': 0.418, 'surprise': 0.429, 'fear': 0.178, 'disgust': 0.06}
+[epoch 034] loss=0.3140 val_weighted_f1=0.4036 val_macro_f1=0.3108 time=8.3s per_class_f1={'neutral': 0.468, 'joy': 0.392, 'sadness': 0.302, 'anger': 0.331, 'surprise': 0.481, 'fear': 0.165, 'disgust': 0.036}
+[epoch 035] loss=0.3128 val_weighted_f1=0.4408 val_macro_f1=0.3310 time=8.3s per_class_f1={'neutral': 0.536, 'joy': 0.399, 'sadness': 0.32, 'anger': 0.388, 'surprise': 0.463, 'fear': 0.163, 'disgust': 0.048}
+[epoch 036] loss=0.3098 val_weighted_f1=0.4322 val_macro_f1=0.3222 time=8.4s per_class_f1={'neutral': 0.531, 'joy': 0.397, 'sadness': 0.292, 'anger': 0.371, 'surprise': 0.462, 'fear': 0.144, 'disgust': 0.06}
+[trainer] early stopping at epoch 36 (patience=10)
+[2026-07-03 10:14:32,187][__main__][INFO] - test_weighted_f1=0.4581 test_macro_f1=0.3094 test_accuracy=0.4123 best_epoch=26 avg_epoch_time_sec=11.28

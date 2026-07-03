@@ -1142,3 +1142,70 @@ log(p_t)`. This changes `training.losses.FocalLoss` only — no change to
 `SocialGNN`, `collate_dialogues`, checkpoint selection metric (still val
 weighted F1), or any other locked hyperparameter. **Stopping here for
 sign-off before implementing.**
+
+### Step 5 (post sign-off) — amendment implemented, all 3 seeds re-run
+
+Sign-off received. `compute_inverse_frequency_alpha` + `FocalLoss(alpha=...)`
+implemented (`src/rapport/training/losses.py`, `trainer.py`), regression
+tests added (`tests/test_losses.py`, all pass), full recipe + rationale
+recorded in `docs/RECIPE.md`. Git commit `76e483e`. Pre-amendment run
+artifacts preserved at `outputs/speaker_only_seed{42,1337,2024}_pre_alpha/`
+before re-running (the re-run reuses the same `run_name`/output dir).
+
+#### 3-seed table: amended recipe vs. gate
+
+| seed | test weighted F1 | test macro F1 | test accuracy | fear F1 | disgust F1 |
+|---|---|---|---|---|---|
+| 42 | 0.4863 | 0.3164 | 0.4659 | 0.116 | 0.057 |
+| 1337 | 0.5004 | 0.3280 | 0.4766 | 0.126 | 0.053 |
+| 2024 | 0.4581 | 0.3094 | 0.4123 | 0.089 | 0.075 |
+| **mean ± std** | **0.4816 ± 0.0216** | 0.3179 ± 0.0094 | **0.4516 ± 0.0345** | 0.110 ± 0.019 | **0.062 ± 0.012** |
+
+| criterion | required | mean (amended) | pass? |
+|---|---|---|---|
+| (a) beat hard floor | ≥ 0.5574 | 0.4816 | **NO — 3/3 fail, worse than before** |
+| (b) beat constant-baseline accuracy | > 0.4816 | 0.4516 | **NO — 3/3 fail (0/3 pre-amendment failed this)** |
+| (c1) fear F1 nonzero, every seed | > 0 | 0.089–0.126 | **yes — 3/3** |
+| (c2) disgust F1 nonzero, every seed | > 0 | 0.053–0.075 | **yes — 3/3 (was 0/3 pre-amendment)** |
+
+**GATE: still FAILED, on more criteria than before the amendment** (2 of 4
+now fail vs. 2 of 4 before — but *which* two flipped: disgust-nonzero and
+fear-robustness now pass cleanly; accuracy-vs-baseline, which passed 3/3
+pre-amendment, now fails 3/3).
+
+#### Honest accounting — the amendment worked exactly as designed, and cost more than it gave back on this gate
+
+Mean deltas vs. the pre-amendment 3-seed mean (`outputs/*_pre_alpha/`):
+
+| metric | pre-amendment | post-amendment | delta |
+|---|---|---|---|
+| weighted F1 | 0.5353 | 0.4816 | -0.0537 |
+| accuracy | 0.5763 | 0.4516 | -0.1247 |
+| macro F1 | 0.3128 | 0.3179 | +0.0051 |
+| fear F1 | 0.038 | 0.110 | +0.072 |
+| disgust F1 | 0.000 | 0.062 | +0.062 |
+
+Down-weighting neutral (alpha=0.13, vs. fear/disgust's 2.29/2.27) measurably
+hurts neutral recall (mean ~0.86 -> ~0.57 across the amended seeds) — and
+neutral is 48% of the test set, so that recall drop drags weighted F1 and
+raw accuracy down hard. Macro F1 (equal-weighted across all 7 classes) is
+roughly flat: the gain from fixing two near-zero classes is almost exactly
+offset by the loss on the majority class within the same equal-weighted
+average. This is the textbook class-balancing trade-off, not a bug or a
+surprising result — but it means **this specific project gate (weighted
+F1 + accuracy-vs-baseline) is calibrated in a way that actively penalizes
+the fix for the disgust/fear collapse.**
+
+**Decision (recorded, not deciding unilaterally beyond scope):** per
+`docs/RECIPE.md`, the amendment stays adopted (it was signed off, and it
+demonstrably fixes the exact pathology it targeted), but it does not
+resolve the N3 gate failure — it trades one failure mode for a different,
+larger one against the current gate's specific metrics. This is now a
+question of gate design (is weighted-F1+ raw-accuracy the right pair of
+stop-gates for a 7-class, majority-neutral dataset with two ~2%-support
+classes?) as much as it is a model-capacity question, and is flagged here
+for direction rather than resolved unilaterally.
+
+**Stopping here per instructions — investigation and one bounded amendment
+complete, 3-seed table reported against the gate, all results written to
+`docs/` and committed.**
