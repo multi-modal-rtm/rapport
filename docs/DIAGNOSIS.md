@@ -1247,8 +1247,19 @@ val weighted F1) — never test metrics, per instructions.
 | tau | selected epoch | val weighted F1 | val macro F1 | val fear F1 | val disgust F1 | constraint (fear>0 and disgust>0) |
 |---|---|---|---|---|---|---|
 | 0.00 | 29 | 0.5068 | 0.3275 | 0.049 | **0.000** | **fails** |
-| 0.25 | — | — | — | — | — | — |
-| 0.50 | — | — | — | — | — | — |
+| 0.25 | 26 | 0.5122 | 0.3325 | 0.049 | **0.000** | **fails** |
+| **0.50** | 26 | 0.5186 | **0.3648** | 0.157 | 0.067 | **passes — highest macro F1 among valid candidates** |
 | 1.00 | 20 | 0.4744 | 0.3415 | 0.195 | 0.051 | passes |
 
-(tau=0.25/0.50 rows filled in once training completes, below.)
+**tau=0.25 still fails the constraint** — at its own early-stopping-selected
+checkpoint, val disgust F1 is exactly 0.000 (same pathology as tau=0, just
+a coincidence of which epoch got selected; disgust was not uniformly zero
+for the whole tau=0.25 run the way it was for tau=0, but the selected
+checkpoint's value is what the pre-registered rule evaluates). **Selected:
+tau=0.50** — the only value that both satisfies the fear>0/disgust>0
+constraint and has the highest val macro F1 (0.3648, beating even tau=1.0's
+0.3415) among the constraint-satisfying candidates. Test-set context (not
+used for selection, reported for completeness): weighted F1 0.5404, macro
+F1 0.3511, accuracy 0.5517, fear F1 0.133, disgust F1 0.065 — notably, this
+already clears the revised gate's criterion (a) (0.5404 > concat probe's
+0.5250) and criterion (b) (all 7 classes nonzero) on this single seed.

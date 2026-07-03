@@ -2,7 +2,7 @@ lr: 1e-4
 batch_size: 16
 dropout: 0.5
 focal_gamma: 3.0
-focal_tau: 1.0
+focal_tau: 0.5
 max_epochs: 100
 early_stop_patience: 10
 grad_clip: 1.0

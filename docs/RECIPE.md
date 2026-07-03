@@ -1,29 +1,66 @@
 # RAPPORT locked training recipe
 
-This is the single source of truth for hyperparameters/design choices that
-apply to **every** future experiment config (`speaker_only`, `full`,
-`minus_*`, `*_lora`), not just the one they were first validated on. Changes
-here require the same bounded-investigation-plus-sign-off process used to
-add the first amendment below — this is not a place for casual tuning.
+**STATUS: PERMANENTLY FROZEN** (as of the FINAL RECIPE LOCK phase,
+`docs/DIAGNOSIS.md`). Every value below applies to **every** future
+experiment config (`speaker_only`, `full`, `minus_*`, `*_lora`). **No
+further recipe iterations, regardless of gate outcome on the locked-recipe
+anchor run.** If a future gate fails under this recipe, the response is to
+reassess the *architecture* (RAPPORT's relational/shift/temporal
+components), not to reopen tuning of anything in this document. This file
+is the historical record of how each value was chosen, kept for
+provenance — it is not an invitation to keep adjusting them.
 
-## Locked recipe (as of `speaker_only` gate-failure investigation)
+## Locked recipe (final)
 
 | component | value | source |
 |---|---|---|
 | optimizer | AdamW, lr=1e-4 | original speaker_only reproduction target |
 | schedule | cosine annealing, T_max=max_epochs | " |
 | loss | focal loss, gamma=3.0 | " |
-| loss alpha | **inverse-frequency, class-balanced** (see below) | amendment, this document |
+| loss alpha | **tempered class-balanced, tau=0.5** (see below) | FINAL RECIPE LOCK tau-selection sweep |
 | dropout | 0.5 | original |
 | GNN hidden dim | 256 | original |
 | max epochs | 100 | original |
-| early stop | patience 10, **metric: val weighted F1** | original (audited, not changed — see below) |
+| early stop | patience 10, **metric: val weighted F1** | original (audited twice, not changed — see below) |
 | precision | bf16 autocast | original |
 | BLAS thread caps | OMP/OPENBLAS/MKL_NUM_THREADS=8 | recalibration phase housekeeping |
 
+## Amendment 2 (final) — tempered alpha, tau=0.5
+
+**Adopted:** yes — the concluding amendment of the FINAL RECIPE LOCK phase.
+Supersedes Amendment 1's tau=1.0 (full inverse frequency) below; the
+formula generalizes to `w_c = (1/f_c)^tau`, so tau=1.0 (Amendment 1) and
+tau=0.0 (original gamma-only) are both special cases of the same dial, not
+separate mechanisms.
+
+**Why:** Amendment 1 (tau=1.0) fixed the disgust/fear collapse but
+overcorrected — neutral recall dropped enough to fail the (then-current)
+accuracy gate in all 3 seeds. tau is the continuous dial between "tau=0:
+disgust collapses to 0" and "tau=1: overcorrects, hurts the 48%-majority
+class enough to fail accuracy." Selected once, on **val** metrics, **seed
+42 only**, fixed criterion decided in advance: *highest val macro F1
+subject to val fear F1 > 0 and val disgust F1 > 0* — never test metrics,
+never other seeds, to keep the selection honest (a 1-seed, val-only search
+over a single scalar is a small, bounded, pre-committed search, not a
+tuning fishing expedition).
+
+| tau | val weighted F1 | val macro F1 | val fear F1 | val disgust F1 | constraint |
+|---|---|---|---|---|---|
+| 0.00 | 0.5068 | 0.3275 | 0.049 | 0.000 | fails |
+| 0.25 | 0.5122 | 0.3325 | 0.049 | 0.000 | fails |
+| **0.50** | **0.5186** | **0.3648** | **0.157** | **0.067** | **passes — selected** |
+| 1.00 | 0.4744 | 0.3415 | 0.195 | 0.051 | passes |
+
+tau=0.5 both satisfies the constraint and has the highest val macro F1 of
+the two constraint-satisfying candidates (0.3648 vs. tau=1.0's 0.3415) —
+a clean win on the pre-registered criterion, not a close call requiring
+judgment. Full sweep detail: `docs/DIAGNOSIS.md`, FINAL RECIPE LOCK
+section. `focal_tau: 0.5` is now the permanent default in
+`configs/training/default.yaml`.
+
 ## Amendment history
 
-### Amendment 1 — class-balanced (inverse-frequency) alpha for FocalLoss
+### Amendment 1 (superseded by Amendment 2 above) — class-balanced (inverse-frequency, tau=1.0) alpha for FocalLoss
 
 **Adopted:** yes, per explicit sign-off during the `speaker_only` N3
 gate-failure investigation (`docs/DIAGNOSIS.md`, GATE-FAILURE INVESTIGATION
