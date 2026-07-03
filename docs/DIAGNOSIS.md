@@ -945,3 +945,81 @@ to the status quo, the marginal value of forcing a fragile third-party
 checkpoint to work was low relative to the cost. `Fix 3` (re-extracting
 native 16 frames, deferred since Fix Stage 1) is formally closed: **not
 implemented, will not be revisited.**
+
+---
+
+## PHASE N3, STEPS 2-3 — speaker_only seed 42: GATE FAILED, seeds 1337/2024 not run
+
+Trained `speaker_only` (per-speaker GNN, mean-pooling, frozen backbones,
+certified `masked_mean_second_to_last_layer` text cache), seed 42, locked
+hyperparameters (all already matched `configs/training/default.yaml` and
+`SocialGNN`'s hardcoded `HIDDEN_DIM=256` exactly — no config changes were
+needed): AdamW lr=1e-4, cosine schedule, focal γ=3, dropout 0.5, GNN hidden
+256, max 100 epochs, early stop patience 10 on val weighted F1, bf16
+autocast. Git commit `bddd533` (housekeeping thread-cap commit). Full
+metrics in `outputs/speaker_only_seed42/metrics.json` (this begins the
+`metrics.json` convention for real runs, schema v1).
+
+Early stopped at epoch 39 (best: epoch 29, avg 8.14s/epoch, ~5.5 min total
+wall clock).
+
+### Test-set result
+
+| metric | value |
+|---|---|
+| weighted F1 | **0.5410** |
+| macro F1 | 0.3187 |
+| accuracy | 0.5778 |
+| neutral F1 | 0.748 |
+| joy F1 | 0.430 |
+| sadness F1 | 0.191 |
+| anger F1 | 0.407 |
+| surprise F1 | 0.418 |
+| fear F1 | 0.037 |
+| disgust F1 | **0.000** |
+
+### GATE: FAILED (2 of 4 criteria)
+
+| criterion | required | actual | pass? |
+|---|---|---|---|
+| (a) beat hard floor (text probe 0.5274 + 0.03) | ≥ 0.5574 | 0.5410 | **NO** |
+| (b) beat constant-baseline accuracy | > 0.4816 | 0.5778 | yes |
+| (c1) fear F1 nonzero | > 0 | 0.037 | yes |
+| (c2) disgust F1 nonzero | > 0 | 0.000 | **NO** |
+
+**Per phase instructions, seeds 1337 and 2024 are not run** — the
+"if seed 42 passes" condition for the 3-seed table was not met. Stopping
+after this single-seed result and flagging back rather than silently
+proceeding or silently stopping.
+
+### Delta vs. concat linear probe (first GNN-earns-its-keep evidence)
+
+Model test weighted F1 (0.5410) **beats** the concat probe (0.5250) by
+**+0.0160** — the GNN's dialogue-level, speaker-state modeling is adding
+real signal over a context-free per-utterance linear probe on the same
+frozen features, just not enough to also clear the separate hard-floor
+margin against the *text-only* probe (which is itself stronger than
+concat, per the Recalibration findings above — concat still trails text
+alone). These are two different, both-true comparisons: the model
+meaningfully outperforms the weaker concat probe, and still falls short of
+the stronger text-only probe's +0.03 requirement.
+
+### Interpretation (not yet acted on — flagging for direction, not deciding unilaterally)
+
+This is a materially different situation from a clean pass or a clean
+structural failure: the model trained successfully (loss decreased
+smoothly, tiny-overfit-style dynamics were already validated in the prior
+diagnosis phase), beats the trivial baselines, and even beats the concat
+probe — but still misses the hard floor by 0.0164 and produces zero
+disgust recall (68 test support, the smallest class alongside fear's 50).
+Plausible, non-exclusive explanations: (1) disgust/fear are MELD's
+rarest classes and may need more than 40 epochs' worth of gradient signal
+under focal loss to stop being ignored; (2) the hard floor is calibrated
+against the *text* probe specifically, which is now confirmed the single
+strongest modality (0.5274) — a model that fuses in the two weaker,
+lower-ceiling modalities (video 0.3349, audio 0.4111) may be structurally
+capped below that bar with this architecture, independent of seed; (3)
+single-seed variance — with disgust/fear this rare, a different seed could
+plausibly flip both zero-F1 classes to nonzero and/or cross 0.5574 on
+weighted F1 alone, which is exactly what running 1337/2024 would tell us,
+but that was gated on passing first.
