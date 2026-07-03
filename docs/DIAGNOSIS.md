@@ -1263,3 +1263,59 @@ used for selection, reported for completeness): weighted F1 0.5404, macro
 F1 0.3511, accuracy 0.5517, fear F1 0.133, disgust F1 0.065 — notably, this
 already clears the revised gate's criterion (a) (0.5404 > concat probe's
 0.5250) and criterion (b) (all 7 classes nonzero) on this single seed.
+
+### Step 4 — anchor: all 3 seeds, permanently locked recipe, vs. revised gate
+
+Git commit `54b745d` (recipe freeze). Pre-tau-0.5 run artifacts preserved
+at `outputs/speaker_only_seed{42,1337,2024}_tau1_amendment/` (the tau=1.0
+results) and `..._pre_alpha/` (the original tau=0 results) before this
+anchor overwrote the canonical `outputs/speaker_only_seed{42,1337,2024}/`
+dirs. Full per-run detail: `metrics.json` in each.
+
+| seed | weighted F1 | macro F1 | accuracy | neutral | joy | sadness | anger | surprise | fear | disgust |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 42 | 0.5404 | 0.3511 | 0.5517 | 0.720 | 0.441 | 0.232 | 0.411 | 0.456 | 0.133 | 0.065 |
+| 1337 | 0.5350 | 0.3338 | 0.5563 | 0.731 | 0.406 | 0.199 | 0.412 | 0.441 | 0.107 | 0.041 |
+| 2024 | 0.5324 | 0.3264 | 0.5617 | 0.737 | 0.417 | 0.185 | 0.355 | 0.454 | 0.135 | **0.000** |
+| **mean ± std** | **0.5360 ± 0.0041** | 0.3371 ± 0.0127 | 0.5566 ± 0.0050 | — | — | — | — | — | 0.125 ± 0.016 | **0.035 ± 0.033** |
+
+### Against the revised gate — per seed
+
+| criterion | seed 42 | seed 1337 | seed 2024 |
+|---|---|---|---|
+| (a) weighted F1 > 0.5250 (concat probe) | **0.5404 — pass** | **0.5350 — pass** | **0.5324 — pass** |
+| (b) all 7 classes nonzero test F1 | **pass** | **pass** | **FAIL — disgust = 0.000** |
+| (c) macro F1 reported | 0.3511 | 0.3338 | 0.3264 |
+| **overall** | **PASS** | **PASS** | **FAIL** |
+
+**GATE: 2 of 3 seeds pass; 1 of 3 fails on disgust alone.** Every seed
+clears criterion (a) comfortably (weighted F1 exceeds the concat probe by
+0.007–0.015 in all three — a real, if modest, margin, not a coin flip).
+Criterion (b) is the seed-dependent one: seed 2024's disgust F1 is exactly
+0.000, the same total-collapse pattern from the original (tau=0)
+investigation, recurring in one seed even under the selected tau=0.5.
+Looking at each seed's own val disgust F1 *at its selected checkpoint*
+(not just the tau=0.5-selection seed, 42): seed 42's selected checkpoint
+had val disgust 0.067 (nonzero), but **seed 1337's and seed 2024's own
+selected checkpoints both had val disgust 0.000** — tau=0.5 raises
+disgust's average behavior across training but does not reliably push
+every seed's early-stopping-selected checkpoint to nonzero disgust. Seed
+1337 happened to land on nonzero disgust at *test* time anyway (0.041)
+despite a zero-disgust *val* checkpoint (some test-set disgust utterances
+apparently fell on the right side of the decision boundary even though the
+val split showed none) — small-sample noise at n=68 test / smaller still
+at val, cutting both ways.
+
+### Conclusion — anchor recorded, recipe stays frozen regardless
+
+Per instructions, **this is the anchor and the recipe is not touched
+again.** The honest summary: the permanently-locked recipe produces a
+model that clears the weighted-F1-vs-concat-probe bar reliably (3/3 seeds)
+but does not yet reliably escape disgust's collapse-to-zero failure mode
+(2/3 seeds) — an improvement over the original recipe (0/3) and the
+tau=1.0 amendment's own trade-offs, but not a clean, unconditional pass.
+**This result stands as RAPPORT's speaker_only anchor.** Per Step 5's
+instruction, a gate outcome that isn't a clean pass is a signal to
+reassess the architecture (RAPPORT's relational/shift/temporal components
+are specifically motivated by the thesis that per-speaker-only modeling is
+an insufficient representation) — not a signal to reopen this recipe.
