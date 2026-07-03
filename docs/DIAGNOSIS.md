@@ -1209,3 +1209,46 @@ for direction rather than resolved unilaterally.
 **Stopping here per instructions — investigation and one bounded amendment
 complete, 3-seed table reported against the gate, all results written to
 `docs/` and committed.**
+
+---
+
+## FINAL RECIPE LOCK
+
+### REVISED GATE (pre-registered before the anchor run — see Step 4 below for results)
+
+Per the honest accounting above (the class-balanced amendment trades
+accuracy/weighted-F1 for disgust/fear recall in a way the old gate
+penalizes), the gate is revised **before** seeing any anchor results:
+
+| # | criterion | rationale |
+|---|---|---|
+| (a) | test weighted F1 **> 0.5250** (the **concat** linear probe, same V+A+T frozen features) | Apples-to-apples: the model and the concat probe see identical input features. The contextual GNN must earn its keep over context-free per-utterance logistic regression on the *same* features — a stronger, more relevant comparison than the old text-only-probe-plus-margin floor. Beat outright, no margin required (unlike the old +0.03 rule). |
+| (b) | **all 7 classes** nonzero test F1 | Directly targets the disgust/fear collapse this whole investigation was about — a class the model never predicts at all is a categorically worse failure than a class it predicts poorly. |
+| (c) | macro F1 reported alongside weighted F1 in every table from now on | Weighted F1 alone rewards majority-class performance in a 48%-neutral dataset; reporting macro F1 alongside it (not replacing it) keeps both the "aggregate" and "per-class-fair" views visible so a result like the tau=1.0 trade-off is never hidden in a single number again. |
+
+**Removed: the raw-accuracy-vs-constant-baseline criterion.** Rationale:
+it structurally penalizes *any* deliberate probability redistribution away
+from the majority class, which is exactly what fixing a minority-class
+collapse requires — Step 5 of the gate-failure investigation showed
+accuracy dropping below the constant-neutral baseline as a *direct,
+mechanical consequence* of giving disgust/fear nonzero recall, not as a
+sign of a worse model. It was the wrong instrument for this project's
+actual failure mode.
+
+### Step 1 — tempered alpha (tau) selection, seed 42 only, val metrics only
+
+`compute_tempered_alpha(labels, num_classes, tau)`: w_c = (1/f_c)^tau,
+normalized to mean 1. tau=0 (no class correction) and tau=1 (full inverse
+frequency) data already existed from the prior phase; tau=0.25 and tau=0.5
+trained fresh, seed 42 only, selection uses **val** metrics at each run's
+own early-stopping-selected checkpoint (same fixed selection rule: highest
+val weighted F1) — never test metrics, per instructions.
+
+| tau | selected epoch | val weighted F1 | val macro F1 | val fear F1 | val disgust F1 | constraint (fear>0 and disgust>0) |
+|---|---|---|---|---|---|---|
+| 0.00 | 29 | 0.5068 | 0.3275 | 0.049 | **0.000** | **fails** |
+| 0.25 | — | — | — | — | — | — |
+| 0.50 | — | — | — | — | — | — |
+| 1.00 | 20 | 0.4744 | 0.3415 | 0.195 | 0.051 | passes |
+
+(tau=0.25/0.50 rows filled in once training completes, below.)

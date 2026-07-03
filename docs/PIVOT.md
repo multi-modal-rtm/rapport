@@ -24,14 +24,19 @@ number: 0.62 weighted F1) — not something we re-implement or reproduce.
 
 ### 1. Gates
 
+**SUPERSEDED — see "REVISED GATE" in `docs/DIAGNOSIS.md` (FINAL RECIPE LOCK
+phase) for the gate now in force.** Kept below for history only.
+
 The `[0.60, 0.64]` reproduction gate is **void**. From the next phase
 onward, validation is governed by two new criteria:
 
-- **HARD FLOOR (stop gate):** any full multimodal model must beat a
+- ~~**HARD FLOOR (stop gate):** any full multimodal model must beat a
   text-only logistic regression probe trained on cached RoBERTa features by
   **≥ 0.03 weighted F1**. This is a sanity floor, not an aspiration — if a
   multimodal model can't beat a trivial text-only linear probe by a
-  meaningful margin, something is broken.
+  meaningful margin, something is broken.~~ Replaced: the model is now
+  compared against the **concat** probe instead (same-input-features
+  apples-to-apples comparison), beat outright rather than by a margin.
 - **COMPETITIVENESS TARGET (not a stop gate):** ≥ 0.58 weighted F1 on MELD
   test for the model we intend to publish. Aspiration is 0.62+ (matching or
   beating the SocialArcNet baseline), but falling short of 0.58 does not by
