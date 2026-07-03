@@ -880,3 +880,68 @@ RSS logged every 100 clips throughout, zero crashes, zero retries needed.
 
 Stopping here per instructions — recalibration steps 1-3 complete and
 recorded; no model training in this phase.
+
+---
+
+## PHASE N3, STEP 0 — video scouting row D (final row), decision: LOCK MViTv2
+
+Pre-registered rule (fixed before row D was attempted): swap the project's
+video backbone away from MViTv2 only if row D beats row A (0.3347) by
+**≥ 0.02** unbalanced weighted F1.
+
+**Row D was not completed — blocked by a real upstream incompatibility, not
+a missing dependency.** "VideoMAE-v2-base (the distilled HF checkpoint)"
+doesn't map cleanly onto anything that actually exists:
+
+- The true **distilled** checkpoint from the VideoMAEv2 paper (ViT-B
+  distilled from ViT-giant, fine-tuned on Kinetics-710,
+  `vit_b_k710_dl_from_giant.pth` under `OpenGVLab/VideoMAE2`) ships only as
+  a raw `.pth` state dict with no `config.json` / `from_pretrained` support
+  — loading it correctly requires vendoring OpenGVLab's own GitHub
+  model-definition code, not just `transformers`.
+- `OpenGVLab/VideoMAEv2-Base` is the closest HF-native checkpoint, but it's
+  self-supervised-pretrained-only (not distilled), and only loads via
+  `AutoModel(..., trust_remote_code=True)`.
+
+Per sign-off, attempted the second option (`OpenGVLab/VideoMAEv2-Base`,
+`trust_remote_code=True`). Hit a chain of issues:
+
+1. Missing `easydict` and `timm` packages required by the remote modeling
+   code (installed via `uv add`, later reverted — see below).
+2. A hard failure after both were installed:
+   `AttributeError: 'VideoMAEv2' object has no attribute 'all_tied_weights_keys'`,
+   raised deep inside `transformers`' `_finalize_model_loading`. Root-caused
+   directly: `all_tied_weights_keys` is an instance attribute normally set
+   during `PreTrainedModel.post_init()`; the remote `VideoMAEv2.__init__`
+   (written against an older `transformers` release) never calls
+   `self.post_init()`, so the attribute is simply never set against the
+   installed `transformers 5.12.1`. Confirmed this isn't a class-visibility
+   fluke: setting `all_tied_weights_keys = {}` directly on the dynamically-
+   imported `VideoMAEv2` class object did not fix it either — `from_pretrained`
+   does not reuse that same class object, so the patch never reached the
+   instance actually being constructed.
+
+Two real fixes exist (patch the cached remote file on disk, or stand up an
+isolated environment with an older `transformers` pinned for this one row)
+but both add fragility or engineering cost disproportionate to what row D
+was for, especially against rows B and C already showing that **two
+independent, technically-working attempts to improve on MViTv2 (an
+aspect-ratio fix and a native-16-frame VideoMAE swap) both underperformed
+the status quo.** Per explicit sign-off: **skip row D, decide from rows
+A–C's evidence already in hand.**
+
+`easydict`/`timm` were removed again (`uv remove`) and
+`scripts/video_scouting.py` was left unmodified — no working, uncommitted
+row D code exists to maintain.
+
+### DECISION (final — video backbone locked)
+
+**MViTv2-as-is is locked as the project's permanent video representation.
+Video backbones are not revisited going forward.** Evidence: row A
+(0.3347) beat both row B (0.3251, aspect-ratio fix) and row C (0.3018,
+VideoMAE native-16-frame), and row D could not be run to completion despite
+a genuine attempt — with two of three already-completed candidates losing
+to the status quo, the marginal value of forcing a fragile third-party
+checkpoint to work was low relative to the cost. `Fix 3` (re-extracting
+native 16 frames, deferred since Fix Stage 1) is formally closed: **not
+implemented, will not be revisited.**
