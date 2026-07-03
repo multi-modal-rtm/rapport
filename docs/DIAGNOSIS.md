@@ -714,3 +714,111 @@ healthy ranges is a new, open question for the next phase, not something
 this fix stage claimed to close.
 
 **Stopping here per instructions — no retraining, no further probing.**
+
+---
+
+## RECALIBRATION — text mean-pooling, dual (balanced/unbalanced) probes
+
+Context: a prior session started this recalibration phase and died mid-run
+(suspected host OOM during the Step 3 video-scouting script) before any
+result was written here. The uncommitted code from that session (dual
+probes in `probe_features.py`, `compare_text_layers.py`,
+`RobertaBackbone`'s move to masked mean-pooling, `build_feature_cache.py`'s
+`cache_version` manifest) was reviewed and committed as-is
+(`fb29b19`), then every number below was regenerated fresh in this session
+— nothing here is carried over from the lost session.
+
+### Cache audit — confirms current on-disk cache is `masked_mean_second_to_last_layer` (not CLS, not mixed)
+
+`RobertaBackbone` now pools via attention-masked mean over
+`hidden_states[-2]` (second-to-last layer) instead of the old `<s>`-token
+pooling from Fix Stage 1. `data/meld/cache/manifest.json` claims
+`cache_version: 4`, `text: masked_mean_second_to_last_layer`, built
+2026-07-02T17:46:27Z, and no text cache file is newer than the manifest —
+consistent with a completed, non-stale build. Verified this directly rather
+than trusting the manifest: recomputed 20 utterances sampled across all 3
+splits three ways (raw `<s>` CLS token, masked-mean over the final layer,
+masked-mean over the second-to-last layer) and compared each against the
+cached tensor (`atol=1e-3, rtol=1e-3`):
+
+| method | matches / 20 | max abs diff across all 20 |
+|---|---|---|
+| CLS (`hidden_states[-1][:, 0]`) | 0 / 20 | 11.69 |
+| masked-mean, final layer | 0 / 20 | 11.43 |
+| **masked-mean, second-to-last layer** | **20 / 20** | **0.000004** |
+
+**Conclusion: all-meanpool (second-to-last layer), uniformly, no mixing.**
+No cache rebuild was needed. (Aside: CLS and final-layer-meanpool differing
+from the cache by ~11 in max-abs-diff — far larger than Fix Stage 1's ~1.1
+random-pooler mismatch — is expected: those are now different pooling
+*operations* entirely, not just different random seeds of the same one.)
+
+### Step 1 — dual (balanced / unbalanced) linear probes, `scripts/probe_features.py`
+
+Operational note: the first attempt at this run hung for 12+ minutes at
+~5900% CPU / load average 108 on a 60-core box — classic BLAS
+thread-oversubscription (sklearn's `lbfgs` solver spawns a full-width
+OpenBLAS thread pool per fit; for a matrix this size the thread
+spawn/contention overhead dominates the actual FLOPs). Killed and reran with
+`OMP_NUM_THREADS=OPENBLAS_NUM_THREADS=MKL_NUM_THREADS=8`; finished in 57s.
+Noting this because it'll recur on every future sklearn probe on this box
+otherwise.
+
+Per sign-off, **unbalanced is the column for all cross-run comparisons**;
+balanced is reported alongside for context.
+
+| row | unbalanced weighted F1 | balanced weighted F1 |
+|---|---|---|
+| all-neutral (constant) | 0.3127 | 0.3127 |
+| random-stratified | 0.2914 | 0.2914 |
+| video | 0.3349 | 0.1931 |
+| audio | 0.4111 | 0.2971 |
+| **text** | **0.5274** | 0.4277 |
+| concat (V+A+T) | 0.5250 | 0.4603 |
+
+Compare to pre-recalibration (Fix Stage 1, `<s>`-token text, balanced-only):
+text 0.4269 → **0.5274 unbalanced** (mean-pooling is a large, real
+improvement over the `<s>` token for frozen RoBERTa features). Video and
+audio numbers are unchanged from Fix Stage 1 (their backbones weren't
+touched this phase) — video 0.3349 unbalanced is well above the previous
+balanced-only 0.1931 reading, which is a probe-methodology artifact
+(unbalanced vs. balanced), not a feature change; the two aren't directly
+comparable to each other.
+
+**concat (0.5250) still narrowly underperforms text alone (0.5274) on the
+unbalanced column** — smaller gap than Fix Stage 1's balanced-only reading
+(0.4061 vs 0.4269), but the same qualitative issue persists: a linear probe
+with uninformative extra dimensions (video, audio) should be able to
+approximately match its best constituent, not lose to it. Not re-litigating
+Fix Stage 1's read on this (still an open question for a later phase, not
+something this recalibration pass is scoped to fix) — flagging that
+improving text alone did not resolve it.
+
+**Hard floor context (per `docs/PIVOT.md`):** any future full multimodal
+model must beat this text-only probe's unbalanced weighted F1 (0.5274) by
+**≥ 0.03**, i.e. clear **0.5574**, to pass the stop-gate.
+
+### Step 2 — final vs. second-to-last layer text probe, `scripts/compare_text_layers.py`
+
+Same masked-mean-pooling method, same unbalanced-weighted-F1 linear probe,
+differing only in which hidden layer is pooled (`output_hidden_states=True`
+gives every layer from a single forward pass, so this is an apples-to-apples
+comparison):
+
+| layer | unbalanced weighted F1 |
+|---|---|
+| final (`hidden_states[-1]`) | 0.5218 |
+| **second-to-last (`hidden_states[-2]`)** | **0.5274** |
+
+Second-to-last wins, confirming the choice already encoded in
+`RobertaBackbone` and the current cache (`CACHE_VERSION = 4`). Consistent
+with the known effect that a frozen masked-LM's final layer is somewhat
+over-specialized toward the MLM pretraining objective, making the
+penultimate layer a mildly better general-purpose sentence representation
+for downstream linear probing. Small but consistent gap (+0.0056); this
+result is exactly reproduced from what the crashed session's code comments
+claimed, now independently regenerated rather than taken on faith.
+
+**Next: Step 3 (video scouting — MViTv2-as-is vs. corrected-transform vs.
+VideoMAE) re-run with memory guardrails, results to follow in this same
+section.**
