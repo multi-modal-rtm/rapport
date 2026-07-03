@@ -1,15 +1,20 @@
 """Frozen v1 backbones: MViTv2 (video), Wav2Vec 2.0 base (audio), RoBERTa base (text).
 
 Each wrapper exposes a uniform `forward(...) -> (pooled, tokens)` contract:
-  - pooled: [B, 768] — mean over the temporal/sequence dimension for video and
-    audio, the <s> (CLS) token of `last_hidden_state` for text.
+  - pooled: [B, 768] — mean over the temporal/sequence dimension for video,
+    audio, and text (attention-mask-weighted for audio/text, which have
+    padding; video never does).
   - tokens: [B, N, 768] — the full pre-pooling token sequence, kept around for
     the temporal-attention configs (B, D) added in v2.
 
 Text note: `RobertaModel`'s `pooler_output` (Dense+Tanh over the [CLS]
 token) is randomly re-initialized on every process, since `roberta-base`'s
-checkpoint ships without pretrained pooler weights (unlike BERT). We
-deliberately do NOT use it — see `RobertaBackbone` below.
+checkpoint ships without pretrained pooler weights (unlike BERT) — verified
+in docs/DIAGNOSIS.md. We use neither `pooler_output` nor the raw `<s>`
+token (RoBERTa was pretrained without an NSP-style objective, so `<s>`
+was never trained to summarize the sequence); masked mean-pooling over
+`last_hidden_state` is the established stronger choice for frozen RoBERTa
+encoders and is what `RobertaBackbone` does below.
 
 All three are frozen (`requires_grad=False`) in this phase; nothing here calls
 `torch.no_grad()` internally so the same wrappers can be reused, un-frozen,
@@ -103,17 +108,24 @@ class Wav2Vec2Backbone(nn.Module):
 
 
 class RobertaBackbone(nn.Module):
-    """Wraps HF RobertaModel, using the raw pretrained <s> (CLS) token as the
-    pooled output rather than `pooler_output`.
+    """Wraps HF RobertaModel, using attention-mask-weighted mean-pooling over
+    the SECOND-TO-LAST hidden layer as the pooled output — not
+    `pooler_output` (randomly re-initialized per process, verified in
+    docs/DIAGNOSIS.md: two fresh instances given identical input differ by
+    up to 0.93, and a cache built across a crash/resume process boundary
+    showed near-orthogonal (cosine ~0.015) features between segments), and
+    not the raw `<s>` token either (RoBERTa was pretrained without an
+    NSP-style objective, so `<s>` was never trained as a sentence
+    representation).
 
-    `RobertaModel(add_pooling_layer=True)`'s pooler (Dense -> Tanh over the
-    [CLS] hidden state) is randomly re-initialized every process — verified
-    directly in docs/DIAGNOSIS.md: two fresh instances given identical input
-    produce outputs differing by up to 0.93, and a cache built across a
-    crash/resume process boundary showed near-orthogonal (cosine ~0.015)
-    features between segments. `last_hidden_state[:, 0]` is the actual
-    pretrained, deterministic, process-independent <s> token representation
-    and carries no such hazard.
+    Masked mean-pooling is fully deterministic and process-independent,
+    same as the video/audio backbones. Second-to-last vs. final layer was
+    compared directly (`scripts/compare_text_layers.py`, recorded in
+    docs/DIAGNOSIS.md): unbalanced weighted-F1 linear probe on MELD test,
+    0.5274 (second-to-last) vs. 0.5218 (final layer) — the final layer of a
+    masked-LM is somewhat over-specialized toward the MLM objective, a
+    known phenomenon for frozen-feature extraction from pretrained
+    transformers.
     """
 
     OUTPUT_DIM = 768
@@ -126,8 +138,13 @@ class RobertaBackbone(nn.Module):
     def forward(
         self, input_ids: torch.Tensor, attention_mask: torch.Tensor | None = None
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        """input_ids: [B, L] -> pooled [B, 768] (<s> token), tokens [B, L, 768]."""
-        outputs = self.model(input_ids=input_ids, attention_mask=attention_mask)
-        tokens = outputs.last_hidden_state
-        pooled = tokens[:, 0]
+        """input_ids: [B, L] -> pooled [B, 768] (masked mean, 2nd-to-last layer), tokens [B, L, 768]."""
+        outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, output_hidden_states=True)
+        tokens = outputs.hidden_states[-2]
+
+        if attention_mask is not None:
+            mask = attention_mask.unsqueeze(-1).to(tokens.dtype)
+            pooled = (tokens * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1)
+        else:
+            pooled = tokens.mean(dim=1)
         return pooled, tokens

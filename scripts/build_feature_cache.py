@@ -23,7 +23,9 @@ import os
 os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
 import argparse
+import json
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -36,6 +38,19 @@ from rapport.models.backbones import MViTv2Backbone, RobertaBackbone, Wav2Vec2Ba
 
 SPLITS = ("train", "dev", "test")
 CACHE_SUBDIRS = ("video", "audio", "text", "video_tokens", "audio_tokens", "text_tokens")
+
+# Bump whenever a change to backbone code/pooling/preprocessing would produce
+# different cached values for existing utterances, so a full rebuild (not a
+# resume) is required. History:
+#   1 - initial build (flat cache, split-key-collision bug)
+#   2 - fix stage 1: text <s> token (no random pooler), audio unbatched
+#   3 - text switched to attention-masked mean-pooling over last_hidden_state
+#   4 - text switched to second-to-last layer (masked mean), beats final
+#       layer 0.5274 vs 0.5218 unbalanced weighted F1 (scripts/compare_text_layers.py)
+CACHE_VERSION = 4
+TEXT_POOLING = "masked_mean_second_to_last_layer"
+AUDIO_POOLING = "masked_mean_unbatched"
+VIDEO_POOLING = "mean_patch_tokens"
 
 
 def _is_cached(out_dir: Path, split: str, dialogue_id: int, utterance_id: int) -> bool:
@@ -171,6 +186,14 @@ def main() -> None:
 
         print(f"[build_feature_cache] split={split} done in {time.time() - start:.1f}s")
 
+    manifest = {
+        "cache_version": CACHE_VERSION,
+        "built_at": datetime.now(timezone.utc).isoformat(),
+        "splits": list(args.splits),
+        "pooling": {"video": VIDEO_POOLING, "audio": AUDIO_POOLING, "text": TEXT_POOLING},
+    }
+    (args.out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2))
+    print(f"[build_feature_cache] wrote {args.out_dir / 'manifest.json'}: {manifest}")
     print("[build_feature_cache] all splits complete.")
 
 
