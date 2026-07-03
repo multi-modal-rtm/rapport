@@ -40,3 +40,6 @@ packages = ["src/rapport"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "slow: loads the full cached feature set and fits a probe (run explicitly with `pytest -m slow`)",
+]

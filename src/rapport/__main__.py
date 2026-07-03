@@ -1,4 +1,19 @@
 import logging
+import os
+
+# Must be set before numpy/torch/sklearn are imported (by hydra's deps or
+# below) -- BLAS libraries read these once at first use. Without this cap,
+# sklearn's LogisticRegression (used every epoch in eval/report.py's
+# classification_report, and in the probe-floor regression test) spawns a
+# full-width OpenBLAS thread pool per call; on this 60-core box that caused
+# 12+ minutes of load-average-108 thread oversubscription for a sub-minute
+# job (see docs/DIAGNOSIS.md, Recalibration Step 1). Same fix applied here
+# so every training run gets it by default, not just the standalone probe
+# script.
+os.environ.setdefault("OMP_NUM_THREADS", "8")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "8")
+os.environ.setdefault("MKL_NUM_THREADS", "8")
+
 from pathlib import Path
 
 import hydra
