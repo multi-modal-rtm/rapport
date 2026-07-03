@@ -1023,3 +1023,122 @@ single-seed variance — with disgust/fear this rare, a different seed could
 plausibly flip both zero-F1 classes to nonzero and/or cross 0.5574 on
 weighted F1 alone, which is exactly what running 1337/2024 would tell us,
 but that was gated on passing first.
+
+---
+
+## GATE-FAILURE INVESTIGATION — variance, selection effect, focal loss, prediction distribution
+
+### Step 1 — 3-seed variance (current, unamended recipe)
+
+Ran seeds 1337 and 2024 regardless of the seed-42 gate result, same locked
+recipe, git commit `663e968`.
+
+| seed | test weighted F1 | test macro F1 | test accuracy | fear F1 | disgust F1 | best_epoch |
+|---|---|---|---|---|---|---|
+| 42 | 0.5410 | 0.3187 | 0.5778 | 0.037 | **0.000** | 29 |
+| 1337 | 0.5277 | 0.3037 | 0.5755 | 0.039 | **0.000** | 24 |
+| 2024 | 0.5373 | 0.3160 | 0.5755 | 0.038 | **0.000** | 28 |
+| **mean ± std** | **0.5353 ± 0.0056** | 0.3128 ± 0.0064 | 0.5763 ± 0.0011 | 0.038 ± 0.001 | **0.000 ± 0.000** | — |
+
+**Disgust F1 = 0.000 in all 3 seeds, to 4 decimal places — this is
+systematic, not stochastic.** All 3 runs also fail the hard floor (weighted
+F1 range 0.5277–0.5410, all below 0.5574) and all 3 fail the disgust-nonzero
+gate criterion; all 3 pass the constant-baseline-accuracy and fear-nonzero
+criteria. Full metrics: `outputs/speaker_only_seed{42,1337,2024}/metrics.json`.
+
+### Step 2 — selection-effect audit: RULED OUT
+
+`scripts/audit_checkpoint_selection.py` parses per-epoch per-class val F1
+directly from the existing training logs (no retraining) and plots fear/
+disgust across every epoch with the early-stopping-selected checkpoint
+marked (`docs/checkpoint_selection_disgust_fear.png`):
+
+| seed | class | selected-checkpoint F1 | max F1 at ANY epoch | max-epoch |
+|---|---|---|---|---|
+| 42 | fear | 0.0490 | 0.0490 | 22 |
+| 1337 | fear | 0.0490 | 0.0490 | 23 |
+| 2024 | fear | 0.0490 | 0.0490 | 21 |
+| 42 | disgust | 0.0000 | **0.0000** | 0 |
+| 1337 | disgust | 0.0000 | **0.0000** | 0 |
+| 2024 | disgust | 0.0000 | **0.0000** | 0 |
+
+**Max equals selected for both classes, in every run.** Disgust's val F1 is
+a flat 0.000 line for the *entire* training run in all 3 seeds (visible
+directly in the plot) — there is no better disgust checkpoint anywhere in
+training that weighted-F1-based selection is missing. Fear plateaus at
+~0.049 from roughly epoch 20–24 onward and stays there; the selected
+checkpoint sits on that plateau in all 3 runs, not off of it. **This
+decisively rules out "checkpoint selection on weighted F1" as the
+mechanism** — the model isn't learning disgust at some other point in
+training and then losing that checkpoint to a majority-class-dominated
+selection metric; it simply never learns disgust at all, at any epoch.
+
+### Step 3 — focal loss audit: NO BUG FOUND
+
+`src/rapport/training/losses.py`'s `FocalLoss` checked against Lin et al.
+2017 point by point:
+
+- **Single log_softmax, not double-softmax:** `log_probs = F.log_softmax(logits, dim=-1)`,
+  then `pt = log_pt.exp()` recovers `p_t` exactly via the identity
+  `exp(log(p_t)) = p_t` — mathematically exact, not a second softmax call.
+  Verified numerically against a from-scratch reference implementation:
+  bit-identical output.
+- **Gamma applied correctly:** `loss = -((1 - pt) ** gamma) * log_pt` is
+  exactly `FL(p_t) = -(1-p_t)^γ log(p_t)`, Lin et al. eq. 5's γ-only
+  variant (implicit α_t = 1).
+- **Padding/masking correct:** `valid = targets != ignore_index` filters
+  padded positions out *before* both `log_softmax` and `.mean()` — padded
+  positions never enter the loss computation at all, not merely
+  zero-weighted within a mean that includes them in its denominator. This
+  independently confirms Step 5 of the original diagnosis phase (gradient
+  probe already showed no padding leak).
+- **Per-class alpha weighting: absent**, as expected — no `alpha`
+  parameter or per-class reweighting term anywhere in the loss.
+
+**No implementation bug exists.** The loss function is a correct, faithful
+gamma-only focal loss.
+
+### Step 4 — prediction-distribution check (seed 42, test split)
+
+`scripts/audit_predictions.py`, re-running the seed-42 best checkpoint
+(epoch 29) over the full test split:
+
+| class | true count | predicted count | never predicted? |
+|---|---|---|---|
+| neutral | 1256 | 1620 | no |
+| joy | 402 | 393 | no |
+| sadness | 208 | 96 | no |
+| anger | 345 | 314 | no |
+| surprise | 281 | 183 | no |
+| fear | 50 | 4 | no |
+| **disgust** | 68 | **0** | **YES** |
+
+**Disgust is never predicted — 0 out of 2610 test utterances — not
+"predicted but always wrong."** Fear is predicted only 4 times total
+(consistent with its near-zero-but-nonzero F1). This is a genuine class
+collapse, not a borderline miscalibration.
+
+### Synthesis — which amendment applies
+
+Per the pre-registered decision tree: Step 2 found no selection effect (the
+"switch to macro-F1 selection" branch does not apply — there's no better
+checkpoint being missed), and Step 3 found no implementation bug (the "fix
+the bug" branch does not apply). **Neither of the first two branches
+fires, so the remaining branch applies: propose adding inverse-frequency
+(class-balanced) alpha weights to the focal loss** — the standard remedy
+for a class that a loss function is structurally never prioritizing highly
+enough to escape a local optimum of "always predict something else."
+Disgust (68/2610 test, ~2.6%) and fear (50/2610, ~1.9%) are MELD's two
+rarest classes by a wide margin (next-smallest is anger at 345); focal
+loss's γ term reweights *easy vs. hard examples* but, absent alpha, applies
+no *class-frequency* correction at all — exactly the gap class-balanced
+focal loss closes.
+
+**Proposing this as the one pre-registered amendment, per sign-off
+required before implementing:** add per-class alpha weights to
+`FocalLoss`, computed as inverse class frequency (normalized) from the
+training split's label distribution, applied as `FL(p_t) = -α_t (1-p_t)^γ
+log(p_t)`. This changes `training.losses.FocalLoss` only — no change to
+`SocialGNN`, `collate_dialogues`, checkpoint selection metric (still val
+weighted F1), or any other locked hyperparameter. **Stopping here for
+sign-off before implementing.**
