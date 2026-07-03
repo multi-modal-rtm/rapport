@@ -1,0 +1,112 @@
+=== transform audit ===
+official: resize_size=[256] crop_size=[224, 224] mean=[0.45, 0.45, 0.45] std=[0.225, 0.225, 0.225]
+current preprocess_meld.py: TF.resize(frames, size=[256, 256], ...) then center_crop([224,224])
+current mean=(0.45, 0.45, 0.45) std=(0.225, 0.225, 0.225)
+DIVERGENCE FOUND: official resize_size=[256] (single value) resizes the SHORTER edge to 256, preserving aspect ratio, before center-cropping to 224x224. The current pipeline calls TF.resize(..., size=[256, 256]) -- a two-element size, which torchvision resizes to EXACTLY 256x256, ignoring aspect ratio. MELD source clips are 1280x720 (16:9), so this distorts (vertically stretches) every frame before the model ever sees it. mean/std match exactly.
+[video_scouting][rss] startup: after 0 clips, RSS=0.88 GB
+
+[video_scouting] train subsample: 1000 (stratified from 9988), test: 2610 (full)
+
+[video_scouting] === Row A: MViTv2-as-is (from cache) ===
+[video_scouting] Row A unbalanced weighted F1 = 0.3347
+[video_scouting][rss] after row A: after 3610 clips, RSS=0.93 GB
+
+[video_scouting] === Row B: MViTv2 with corrected transform (streaming) ===
+[video_scouting][rss] row B train chunk: after 128 clips, RSS=1.74 GB
+[video_scouting][rss] row B train chunk: after 256 clips, RSS=1.74 GB
+[video_scouting][rss] row B train chunk: after 320 clips, RSS=1.74 GB
+[video_scouting][rss] row B train chunk: after 448 clips, RSS=1.74 GB
+[video_scouting][rss] row B train chunk: after 512 clips, RSS=1.74 GB
+[video_scouting][rss] row B train chunk: after 640 clips, RSS=1.75 GB
+[video_scouting][rss] row B train chunk: after 704 clips, RSS=1.75 GB
+[video_scouting][rss] row B train chunk: after 832 clips, RSS=1.75 GB
+[video_scouting][rss] row B train chunk: after 960 clips, RSS=1.75 GB
+[video_scouting][rss] row B train chunk: after 1000 clips, RSS=1.62 GB
+[video_scouting][rss] row B test chunk: after 128 clips, RSS=1.75 GB
+[video_scouting][rss] row B test chunk: after 256 clips, RSS=1.75 GB
+[video_scouting][rss] row B test chunk: after 320 clips, RSS=1.75 GB
+[video_scouting][rss] row B test chunk: after 448 clips, RSS=1.75 GB
+[video_scouting][rss] row B test chunk: after 512 clips, RSS=1.75 GB
+[video_scouting][rss] row B test chunk: after 640 clips, RSS=1.75 GB
+[video_scouting][rss] row B test chunk: after 704 clips, RSS=1.75 GB
+[video_scouting][rss] row B test chunk: after 832 clips, RSS=1.75 GB
+[video_scouting][rss] row B test chunk: after 960 clips, RSS=1.75 GB
+[video_scouting][rss] row B test chunk: after 1024 clips, RSS=1.75 GB
+[video_scouting][rss] row B test chunk: after 1152 clips, RSS=1.75 GB
+[video_scouting][rss] row B test chunk: after 1216 clips, RSS=1.75 GB
+[video_scouting][rss] row B test chunk: after 1344 clips, RSS=1.75 GB
+[video_scouting][rss] row B test chunk: after 1408 clips, RSS=1.75 GB
+[video_scouting][rss] row B test chunk: after 1536 clips, RSS=1.76 GB
+[video_scouting][rss] row B test chunk: after 1600 clips, RSS=1.76 GB
+[video_scouting][rss] row B test chunk: after 1728 clips, RSS=1.76 GB
+[video_scouting][rss] row B test chunk: after 1856 clips, RSS=1.76 GB
+[video_scouting][rss] row B test chunk: after 1920 clips, RSS=1.76 GB
+[video_scouting][rss] row B test chunk: after 2048 clips, RSS=1.76 GB
+[video_scouting][rss] row B test chunk: after 2112 clips, RSS=1.76 GB
+[video_scouting][rss] row B test chunk: after 2240 clips, RSS=1.76 GB
+[video_scouting][rss] row B test chunk: after 2304 clips, RSS=1.76 GB
+[video_scouting][rss] row B test chunk: after 2432 clips, RSS=1.76 GB
+[video_scouting][rss] row B test chunk: after 2560 clips, RSS=1.76 GB
+[video_scouting][rss] row B test chunk: after 2610 clips, RSS=1.70 GB
+[video_scouting] Row B unbalanced weighted F1 = 0.3251
+[video_scouting][rss] after row B: after 3610 clips, RSS=1.70 GB
+
+[video_scouting] === Row C: VideoMAE-base (native 16 frames, streaming) ===
+Loading weights:   0%|          | 0/162 [00:00<?, ?it/s]Loading weights: 100%|██████████| 162/162 [00:00<00:00, 3578.44it/s]
+[transformers] [1mVideoMAEForVideoClassification LOAD REPORT[0m from: MCG-NJU/videomae-base-finetuned-kinetics
+Key                                                            | Status     | 
+---------------------------------------------------------------+------------+-
+videomae.encoder.layer.{0...11}.attention.attention.q_bias     | UNEXPECTED | 
+videomae.encoder.layer.{0...11}.attention.attention.v_bias     | UNEXPECTED | 
+videomae.encoder.layer.{0...11}.attention.attention.query.bias | MISSING    | 
+videomae.encoder.layer.{0...11}.attention.attention.value.bias | MISSING    | 
+videomae.encoder.layer.{0...11}.attention.attention.key.bias   | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+[video_scouting] VideoMAE bias fix: remapped 24 params
+[video_scouting][rss] row C train chunk: after 128 clips, RSS=1.92 GB
+[video_scouting][rss] row C train chunk: after 256 clips, RSS=1.92 GB
+[video_scouting][rss] row C train chunk: after 320 clips, RSS=1.92 GB
+[video_scouting][rss] row C train chunk: after 448 clips, RSS=1.92 GB
+[video_scouting][rss] row C train chunk: after 512 clips, RSS=1.92 GB
+[video_scouting][rss] row C train chunk: after 640 clips, RSS=1.92 GB
+[video_scouting][rss] row C train chunk: after 704 clips, RSS=1.92 GB
+[video_scouting][rss] row C train chunk: after 832 clips, RSS=1.92 GB
+[video_scouting][rss] row C train chunk: after 960 clips, RSS=1.92 GB
+[video_scouting][rss] row C train chunk: after 1000 clips, RSS=1.93 GB
+[video_scouting][rss] row C test chunk: after 128 clips, RSS=1.93 GB
+[video_scouting][rss] row C test chunk: after 256 clips, RSS=1.93 GB
+[video_scouting][rss] row C test chunk: after 320 clips, RSS=1.93 GB
+[video_scouting][rss] row C test chunk: after 448 clips, RSS=1.93 GB
+[video_scouting][rss] row C test chunk: after 512 clips, RSS=1.93 GB
+[video_scouting][rss] row C test chunk: after 640 clips, RSS=1.93 GB
+[video_scouting][rss] row C test chunk: after 704 clips, RSS=1.93 GB
+[video_scouting][rss] row C test chunk: after 832 clips, RSS=1.93 GB
+[video_scouting][rss] row C test chunk: after 960 clips, RSS=1.93 GB
+[video_scouting][rss] row C test chunk: after 1024 clips, RSS=1.93 GB
+[video_scouting][rss] row C test chunk: after 1152 clips, RSS=1.93 GB
+[video_scouting][rss] row C test chunk: after 1216 clips, RSS=1.93 GB
+[video_scouting][rss] row C test chunk: after 1344 clips, RSS=1.93 GB
+[video_scouting][rss] row C test chunk: after 1408 clips, RSS=1.93 GB
+[video_scouting][rss] row C test chunk: after 1536 clips, RSS=1.93 GB
+[video_scouting][rss] row C test chunk: after 1600 clips, RSS=1.93 GB
+[video_scouting][rss] row C test chunk: after 1728 clips, RSS=1.93 GB
+[video_scouting][rss] row C test chunk: after 1856 clips, RSS=1.93 GB
+[video_scouting][rss] row C test chunk: after 1920 clips, RSS=1.93 GB
+[video_scouting][rss] row C test chunk: after 2048 clips, RSS=1.93 GB
+[video_scouting][rss] row C test chunk: after 2112 clips, RSS=1.93 GB
+[video_scouting][rss] row C test chunk: after 2240 clips, RSS=1.93 GB
+[video_scouting][rss] row C test chunk: after 2304 clips, RSS=1.93 GB
+[video_scouting][rss] row C test chunk: after 2432 clips, RSS=1.93 GB
+[video_scouting][rss] row C test chunk: after 2560 clips, RSS=1.93 GB
+[video_scouting][rss] row C test chunk: after 2610 clips, RSS=1.93 GB
+[video_scouting] Row C unbalanced weighted F1 = 0.3018
+[video_scouting][rss] after row C: after 3610 clips, RSS=1.59 GB
+
+[video_scouting] === summary (unbalanced weighted F1, same subsample) ===
+  A_mvitv2_as_is: 0.3347
+  B_mvitv2_corrected: 0.3251
+  C_videomae: 0.3018

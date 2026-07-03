@@ -20,12 +20,16 @@ run afterward in batches on the main process.
 from __future__ import annotations
 
 import argparse
+import gc
+import multiprocessing
+import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 import av
 import numpy as np
 import pandas as pd
+import psutil
 import torch
 import torchvision.transforms.v2.functional as TF
 from huggingface_hub import hf_hub_download
@@ -41,6 +45,19 @@ RAW_DIR = Path("data/meld/raw/MELD.Raw")
 VIDEOMAE_MODEL_NAME = "MCG-NJU/videomae-base-finetuned-kinetics"
 VIDEOMAE_NUM_FRAMES = 16
 BATCH_SIZE = 32
+
+# Native-resolution uint8 frames (row C, ~1280x720x3x16 bytes/clip = ~44MB) are
+# what OOM'd the prior run: the old code decoded an entire split into an
+# in-memory dict before any forward pass consumed it (~160GB for ~3600 clips).
+# Streaming in small chunks (decode -> forward -> free) keeps the resident
+# in-memory frame buffer bounded to CHUNK_SIZE clips regardless of split size.
+CHUNK_SIZE = 64
+_PROCESS = psutil.Process(os.getpid())
+
+
+def log_rss(tag: str, n_clips_done: int) -> None:
+    rss_gb = _PROCESS.memory_info().rss / 1e9
+    print(f"[video_scouting][rss] {tag}: after {n_clips_done} clips, RSS={rss_gb:.2f} GB", flush=True)
 
 
 def audit_transform_divergence() -> None:
@@ -99,20 +116,54 @@ def _worker_row_c(args: tuple[str, int, int]) -> tuple[int, int, np.ndarray]:
     return dialogue_id, utterance_id, native
 
 
-def parallel_decode(df: pd.DataFrame, video_dir: Path, worker_fn, max_workers: int = 32) -> dict[tuple[int, int], np.ndarray]:
+def _decode_chunk(chunk_rows: list, video_dir: Path, worker_fn, pool: ProcessPoolExecutor) -> dict[tuple[int, int], np.ndarray]:
     tasks = [
         (str(video_dir / f"dia{row.dialogue_id}_utt{row.utterance_id}.mp4"), row.dialogue_id, row.utterance_id)
-        for row in df.itertuples(index=False)
+        for row in chunk_rows
     ]
     results: dict[tuple[int, int], np.ndarray] = {}
-    with ProcessPoolExecutor(max_workers=max_workers) as pool:
-        futures = [pool.submit(worker_fn, t) for t in tasks]
-        for i, fut in enumerate(as_completed(futures)):
-            dia, utt, arr = fut.result()
-            results[(dia, utt)] = arr
-            if (i + 1) % 500 == 0 or (i + 1) == len(futures):
-                print(f"[video_scouting]   decoded {i + 1}/{len(futures)}")
+    futures = [pool.submit(worker_fn, t) for t in tasks]
+    for fut in as_completed(futures):
+        dia, utt, arr = fut.result()
+        results[(dia, utt)] = arr
     return results
+
+
+def stream_extract(
+    df: pd.DataFrame, video_dir: Path, decode_worker_fn, forward_fn, decode_pool: ProcessPoolExecutor,
+    chunk_size: int = CHUNK_SIZE, log_tag: str = "",
+) -> np.ndarray:
+    """Streams decode -> forward -> free over df in chunks of chunk_size clips,
+    so the resident decoded-frame buffer never holds more than one chunk's
+    worth of clips regardless of split size (this is what the prior OOM'd
+    version got wrong: it decoded the entire split into memory up front).
+
+    decode_pool must be a spawn-context ProcessPoolExecutor created before any
+    CUDA context exists in this process (see main()) — forking a process that
+    already holds a CUDA context or initialized OpenMP threads segfaults the
+    child workers (observed directly: synchronized libgomp segfaults in
+    journalctl the instant a fork-context pool was spawned after
+    `MViTv2Backbone().to(device)` had already run).
+    """
+    rows = list(df.itertuples(index=False))
+    feats = []
+    n_done = 0
+    for start in range(0, len(rows), chunk_size):
+        chunk_rows = rows[start : start + chunk_size]
+        decoded = _decode_chunk(chunk_rows, video_dir, decode_worker_fn, decode_pool)
+        pooled = forward_fn(chunk_rows, decoded)
+        feats.append(pooled)
+
+        prev_done = n_done
+        n_done += len(chunk_rows)
+        del decoded, pooled, chunk_rows
+        gc.collect()
+        torch.cuda.empty_cache()
+
+        if n_done // 100 > prev_done // 100 or n_done == len(rows):
+            log_rss(f"{log_tag} chunk", n_done)
+
+    return np.concatenate(feats)
 
 
 def load_videomae_with_bias_fix(model_name: str) -> VideoMAEForVideoClassification:
@@ -165,33 +216,35 @@ def extract_row_a_cached(df: pd.DataFrame, cache_dir: Path, split: str) -> np.nd
 
 
 @torch.no_grad()
-def batched_mvit_forward(df: pd.DataFrame, decoded: dict, backbone: MViTv2Backbone, device) -> np.ndarray:
+def mvit_forward_chunk(chunk_rows: list, decoded: dict, backbone: MViTv2Backbone, device) -> np.ndarray:
     feats = []
-    keys = [(row.dialogue_id, row.utterance_id) for row in df.itertuples(index=False)]
+    keys = [(row.dialogue_id, row.utterance_id) for row in chunk_rows]
     for start in range(0, len(keys), BATCH_SIZE):
-        chunk = keys[start : start + BATCH_SIZE]
-        frames = torch.stack([torch.from_numpy(decoded[k]) for k in chunk]).to(device)
+        sub = keys[start : start + BATCH_SIZE]
+        frames = torch.stack([torch.from_numpy(decoded[k]) for k in sub]).to(device)
         pooled, _ = backbone(frames)
         feats.append(pooled.cpu().numpy())
+        del frames, pooled
     return np.concatenate(feats)
 
 
 @torch.no_grad()
-def batched_videomae_forward(
-    df: pd.DataFrame, decoded: dict, model: VideoMAEForVideoClassification,
+def videomae_forward_chunk(
+    chunk_rows: list, decoded: dict, model: VideoMAEForVideoClassification,
     processor: VideoMAEImageProcessor, device,
 ) -> np.ndarray:
     encoder = model.videomae.to(device)
     feats = []
-    keys = [(row.dialogue_id, row.utterance_id) for row in df.itertuples(index=False)]
+    keys = [(row.dialogue_id, row.utterance_id) for row in chunk_rows]
     for start in range(0, len(keys), BATCH_SIZE):
-        chunk = keys[start : start + BATCH_SIZE]
-        batch_videos = [[frame for frame in decoded[k]] for k in chunk]
+        sub = keys[start : start + BATCH_SIZE]
+        batch_videos = [[frame for frame in decoded[k]] for k in sub]
         inputs = processor(batch_videos, return_tensors="pt")
         pixel_values = inputs["pixel_values"].to(device)
         outputs = encoder(pixel_values=pixel_values)
         pooled = outputs.last_hidden_state.mean(dim=1)
         feats.append(pooled.cpu().numpy())
+        del batch_videos, inputs, pixel_values, outputs, pooled
     return np.concatenate(feats)
 
 
@@ -202,60 +255,93 @@ def main() -> None:
     parser.add_argument("--train-subsample", default=1000, type=int)
     parser.add_argument("--seed", default=0, type=int)
     parser.add_argument("--workers", default=32, type=int)
+    parser.add_argument("--chunk-size", default=CHUNK_SIZE, type=int)
     args = parser.parse_args()
 
     audit_transform_divergence()
+    log_rss("startup", 0)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # Spawn-context pool created before any CUDA context (or heavily-threaded
+    # BLAS/OpenMP state) exists in this process. A default fork-context pool
+    # created *after* `MViTv2Backbone().to(device)` reproducibly segfaulted
+    # every worker (synchronized libgomp segfault, confirmed via journalctl)
+    # the instant it was spawned — forking a CUDA-initialized process is
+    # unsafe. One pool is reused across every chunk/row below so we pay the
+    # spawn cost (fresh interpreter per worker) only once, not per chunk.
+    decode_pool = ProcessPoolExecutor(
+        max_workers=args.workers, mp_context=multiprocessing.get_context("spawn")
+    )
 
-    train_df_full = pd.read_parquet(args.processed_dir / "train.parquet")
-    train_df = stratified_subsample(train_df_full, args.train_subsample, args.seed)
-    test_df = pd.read_parquet(args.processed_dir / "test.parquet")
-    print(f"\n[video_scouting] train subsample: {len(train_df)} (stratified from {len(train_df_full)}), "
-          f"test: {len(test_df)} (full)")
+    try:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    train_video_dir = find_split_video_dir("train")
-    test_video_dir = find_split_video_dir("test")
+        train_df_full = pd.read_parquet(args.processed_dir / "train.parquet")
+        train_df = stratified_subsample(train_df_full, args.train_subsample, args.seed)
+        test_df = pd.read_parquet(args.processed_dir / "test.parquet")
+        print(f"\n[video_scouting] train subsample: {len(train_df)} (stratified from {len(train_df_full)}), "
+              f"test: {len(test_df)} (full)")
 
-    y_train = train_df["label"].to_numpy()
-    y_test = test_df["label"].to_numpy()
+        train_video_dir = find_split_video_dir("train")
+        test_video_dir = find_split_video_dir("test")
 
-    results = {}
+        y_train = train_df["label"].to_numpy()
+        y_test = test_df["label"].to_numpy()
 
-    print("\n[video_scouting] === Row A: MViTv2-as-is (from cache) ===")
-    A_train = extract_row_a_cached(train_df, args.cache_dir, "train")
-    A_test = extract_row_a_cached(test_df, args.cache_dir, "test")
-    results["A_mvitv2_as_is"] = probe_unbalanced(A_train, y_train, A_test, y_test)
-    print(f"[video_scouting] Row A unbalanced weighted F1 = {results['A_mvitv2_as_is']:.4f}")
+        results = {}
 
-    print("\n[video_scouting] === Row B: MViTv2 with corrected transform ===")
-    print("[video_scouting] decoding train (parallel)...")
-    decoded_b_train = parallel_decode(train_df, train_video_dir, _worker_row_b, args.workers)
-    print("[video_scouting] decoding test (parallel)...")
-    decoded_b_test = parallel_decode(test_df, test_video_dir, _worker_row_b, args.workers)
-    mvit_backbone = MViTv2Backbone().to(device)
-    B_train = batched_mvit_forward(train_df, decoded_b_train, mvit_backbone, device)
-    B_test = batched_mvit_forward(test_df, decoded_b_test, mvit_backbone, device)
-    results["B_mvitv2_corrected"] = probe_unbalanced(B_train, y_train, B_test, y_test)
-    print(f"[video_scouting] Row B unbalanced weighted F1 = {results['B_mvitv2_corrected']:.4f}")
-    del mvit_backbone, decoded_b_train, decoded_b_test
-    torch.cuda.empty_cache()
+        print("\n[video_scouting] === Row A: MViTv2-as-is (from cache) ===")
+        A_train = extract_row_a_cached(train_df, args.cache_dir, "train")
+        A_test = extract_row_a_cached(test_df, args.cache_dir, "test")
+        results["A_mvitv2_as_is"] = probe_unbalanced(A_train, y_train, A_test, y_test)
+        print(f"[video_scouting] Row A unbalanced weighted F1 = {results['A_mvitv2_as_is']:.4f}")
+        del A_train, A_test
+        gc.collect()
+        log_rss("after row A", len(train_df) + len(test_df))
 
-    print("\n[video_scouting] === Row C: VideoMAE-base (native 16 frames) ===")
-    print("[video_scouting] decoding train (parallel)...")
-    decoded_c_train = parallel_decode(train_df, train_video_dir, _worker_row_c, args.workers)
-    print("[video_scouting] decoding test (parallel)...")
-    decoded_c_test = parallel_decode(test_df, test_video_dir, _worker_row_c, args.workers)
-    videomae_model = load_videomae_with_bias_fix(VIDEOMAE_MODEL_NAME)
-    videomae_processor = VideoMAEImageProcessor.from_pretrained(VIDEOMAE_MODEL_NAME)
-    C_train = batched_videomae_forward(train_df, decoded_c_train, videomae_model, videomae_processor, device)
-    C_test = batched_videomae_forward(test_df, decoded_c_test, videomae_model, videomae_processor, device)
-    results["C_videomae"] = probe_unbalanced(C_train, y_train, C_test, y_test)
-    print(f"[video_scouting] Row C unbalanced weighted F1 = {results['C_videomae']:.4f}")
+        print("\n[video_scouting] === Row B: MViTv2 with corrected transform (streaming) ===")
+        mvit_backbone = MViTv2Backbone().to(device)
+        B_train = stream_extract(
+            train_df, train_video_dir, _worker_row_b,
+            lambda rows, dec: mvit_forward_chunk(rows, dec, mvit_backbone, device),
+            decode_pool, args.chunk_size, log_tag="row B train",
+        )
+        B_test = stream_extract(
+            test_df, test_video_dir, _worker_row_b,
+            lambda rows, dec: mvit_forward_chunk(rows, dec, mvit_backbone, device),
+            decode_pool, args.chunk_size, log_tag="row B test",
+        )
+        results["B_mvitv2_corrected"] = probe_unbalanced(B_train, y_train, B_test, y_test)
+        print(f"[video_scouting] Row B unbalanced weighted F1 = {results['B_mvitv2_corrected']:.4f}")
+        del mvit_backbone, B_train, B_test
+        gc.collect()
+        torch.cuda.empty_cache()
+        log_rss("after row B", len(train_df) + len(test_df))
 
-    print("\n[video_scouting] === summary (unbalanced weighted F1, same subsample) ===")
-    for name, wf1 in results.items():
-        print(f"  {name}: {wf1:.4f}")
+        print("\n[video_scouting] === Row C: VideoMAE-base (native 16 frames, streaming) ===")
+        videomae_model = load_videomae_with_bias_fix(VIDEOMAE_MODEL_NAME)
+        videomae_processor = VideoMAEImageProcessor.from_pretrained(VIDEOMAE_MODEL_NAME)
+        C_train = stream_extract(
+            train_df, train_video_dir, _worker_row_c,
+            lambda rows, dec: videomae_forward_chunk(rows, dec, videomae_model, videomae_processor, device),
+            decode_pool, args.chunk_size, log_tag="row C train",
+        )
+        C_test = stream_extract(
+            test_df, test_video_dir, _worker_row_c,
+            lambda rows, dec: videomae_forward_chunk(rows, dec, videomae_model, videomae_processor, device),
+            decode_pool, args.chunk_size, log_tag="row C test",
+        )
+        results["C_videomae"] = probe_unbalanced(C_train, y_train, C_test, y_test)
+        print(f"[video_scouting] Row C unbalanced weighted F1 = {results['C_videomae']:.4f}")
+        del videomae_model, videomae_processor, C_train, C_test
+        gc.collect()
+        torch.cuda.empty_cache()
+        log_rss("after row C", len(train_df) + len(test_df))
+
+        print("\n[video_scouting] === summary (unbalanced weighted F1, same subsample) ===")
+        for name, wf1 in results.items():
+            print(f"  {name}: {wf1:.4f}")
+    finally:
+        decode_pool.shutdown(wait=True, cancel_futures=True)
 
 
 if __name__ == "__main__":

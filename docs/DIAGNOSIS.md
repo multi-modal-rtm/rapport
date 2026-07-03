@@ -819,6 +819,64 @@ for downstream linear probing. Small but consistent gap (+0.0056); this
 result is exactly reproduced from what the crashed session's code comments
 claimed, now independently regenerated rather than taken on faith.
 
-**Next: Step 3 (video scouting — MViTv2-as-is vs. corrected-transform vs.
-VideoMAE) re-run with memory guardrails, results to follow in this same
-section.**
+### Step 3 — video backbone scouting, `scripts/video_scouting.py`, hardened re-run
+
+Stratified 1000-utterance train subsample + full 2610-utterance test split,
+same unbalanced-weighted-F1 linear probe, three video feature sources:
+
+| row | description | unbalanced weighted F1 |
+|---|---|---|
+| A | MViTv2-as-is (current cache: 8 frames, distorted square-resize, repeat-interleaved to 16) | 0.3347 |
+| B | MViTv2, official aspect-ratio-preserving resize (same 8→16 duplication) | 0.3251 |
+| C | VideoMAE-base, native 16 frames (no duplication), official preprocessing | 0.3018 |
+
+**Neither candidate fix beats the current cache.** Row A (the thing already
+in production) is actually the *best* of the three on this subsample — row
+B (fixing the confirmed aspect-ratio distortion bug in
+`preprocess_meld.py`'s resize) is marginally worse (-0.0096), and row C
+(eliminating frame duplication entirely via a different, native-16-frame
+backbone) is worse still (-0.0329). Two read-throughs, not mutually
+exclusive: (a) the video modality's ceiling here may simply be low — MELD
+is largely static, low-motion sitcom dialogue, a poor match for both
+MViTv2 and VideoMAE's Kinetics action-recognition pretraining, so neither
+"fixing" the transform nor switching backbones moves a signal that isn't
+there; (b) row B/C were run against a 1000-utterance train subsample
+(for tractability) vs. row A's number above coming from the same
+subsample here (0.3347, matching the full-train-set probe's 0.3349 to
+within subsampling noise) — so this is an apples-to-apples comparison, not
+an artifact of different training set sizes. **Conclusion: no video
+backbone/preprocessing change is justified by this data.** Fix 3 (deferred
+from Fix Stage 1) is not worth its cost (re-extracting frames for all
+13,706 clips) given neither of its two candidate directions improved on
+the status quo — video stays as-is.
+
+**Operational note — this re-run was not a clean first attempt.** The
+first launch reproducibly crashed every decode worker with a synchronized
+`libgomp` segfault (confirmed via `journalctl -k`, identical instruction
+pointer across ~10 worker PIDs) the instant Row B's decode pool spawned —
+not the OOM originally suspected. Root cause: the streaming refactor
+created `MViTv2Backbone().to(device)` (which initializes a CUDA context)
+*before* calling the chunked decode step, and `ProcessPoolExecutor`'s
+default `fork` start method copies that CUDA/thread state into each worker,
+which is unsafe and crashes. Fixed by creating one `spawn`-context
+`ProcessPoolExecutor` up front (before any CUDA context exists in the main
+process) and reusing it across every chunk/row, rather than forking after
+GPU init. After this fix, the full run (Row A + streaming Row B/C, ~7220
+total decode+forward operations across train/test) completed with **peak
+RSS 1.93 GB** — far under the ~80GB guardrail budget, chunk size 64,
+RSS logged every 100 clips throughout, zero crashes, zero retries needed.
+
+### Recalibration conclusion
+
+| finding | status |
+|---|---|
+| Text cache pooling | confirmed all-meanpool (2nd-to-last layer), 20/20 exact match, no rebuild needed |
+| Text mean-pooling vs. old `<s>`-token | large real improvement: 0.4269 → 0.5274 unbalanced |
+| Text layer choice (final vs. 2nd-to-last) | 2nd-to-last wins (0.5274 vs 0.5218), already encoded in cache v4 |
+| Video: aspect-ratio-preserving transform (Fix 3a) | does not help (0.3251 vs. as-is 0.3347) |
+| Video: VideoMAE native-16-frame swap (Fix 3b) | does not help (0.3018 vs. as-is 0.3347) |
+| Video: recommended action | **none — keep MViTv2-as-is, do not implement Fix 3** |
+| New hard floor for future multimodal models (per `docs/PIVOT.md`) | beat unbalanced text probe 0.5274 by ≥0.03 → clear **0.5574** |
+
+Stopping here per instructions — recalibration steps 1-3 complete and
+recorded; no model training in this phase.
