@@ -4,21 +4,25 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-def compute_inverse_frequency_alpha(labels: pd.Series, num_classes: int) -> torch.Tensor:
-    """Class-balanced alpha weights, normalized to mean 1: alpha_c = inv_freq_c *
-    (num_classes / sum(inv_freq)), inv_freq_c = total / (num_classes * count_c).
+def compute_tempered_alpha(labels: pd.Series, num_classes: int, tau: float) -> torch.Tensor:
+    """Tempered class-balanced alpha weights: w_c = (1/f_c)^tau, f_c = class c's
+    train-split frequency, normalized to mean 1 across classes.
 
-    See docs/DIAGNOSIS.md, GATE-FAILURE INVESTIGATION: disgust/fear (MELD's two
-    rarest classes) got exactly 0.0 val F1 across every epoch of every seed
-    under gamma-only focal loss -- not a checkpoint-selection artifact (ruled
-    out directly) or a loss-implementation bug (audited clean against Lin et
-    al. 2017). Gamma alone reweights easy vs. hard examples but applies no
-    class-frequency correction, which is exactly the gap this closes.
+    tau is the single dial between the two failure modes documented in
+    docs/DIAGNOSIS.md / docs/RECIPE.md:
+    - tau=0: w_c = 1 for all c (gamma-only focal loss, no class correction) --
+      disgust F1 was exactly 0.0 at every epoch of every seed under this.
+    - tau=1: full inverse-frequency (the original amendment) -- fixes
+      disgust/fear but overcorrects, dragging neutral recall (and therefore
+      weighted F1 and raw accuracy) down hard, since neutral is 48% of test.
+    tau in (0, 1) tempers the correction. Selected once on val (seed 42 only,
+    fixed selection criterion), then locked -- see docs/RECIPE.md.
     """
     counts = labels.value_counts().reindex(range(num_classes), fill_value=0)
     total = counts.sum()
-    inv_freq = total / (num_classes * counts.clip(lower=1))
-    alpha = inv_freq * (num_classes / inv_freq.sum())
+    freq = counts.clip(lower=1) / total
+    weights = freq ** (-tau)
+    alpha = weights * (num_classes / weights.sum())
     return torch.tensor(alpha.to_numpy(), dtype=torch.float32)
 
 

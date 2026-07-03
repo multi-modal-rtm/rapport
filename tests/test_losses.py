@@ -1,16 +1,32 @@
 import pandas as pd
 import torch
 
-from rapport.training.losses import FocalLoss, compute_inverse_frequency_alpha
+from rapport.training.losses import FocalLoss, compute_tempered_alpha
 
 
-def test_compute_inverse_frequency_alpha_favors_rare_classes():
+def test_compute_tempered_alpha_favors_rare_classes():
     # class 0: 100 examples (common), class 1: 10 examples (rare)
     labels = pd.Series([0] * 100 + [1] * 10)
-    alpha = compute_inverse_frequency_alpha(labels, num_classes=2)
+    alpha = compute_tempered_alpha(labels, num_classes=2, tau=1.0)
 
     assert alpha[1] > alpha[0], "the rarer class must get a larger alpha weight"
     assert torch.isclose(alpha.mean(), torch.tensor(1.0), atol=1e-5), "alpha should be normalized to mean 1"
+
+
+def test_compute_tempered_alpha_tau_zero_is_uniform():
+    labels = pd.Series([0] * 100 + [1] * 10)
+    alpha = compute_tempered_alpha(labels, num_classes=2, tau=0.0)
+    assert torch.allclose(alpha, torch.ones(2)), "tau=0 must reproduce the gamma-only (no class correction) case"
+
+
+def test_compute_tempered_alpha_interpolates_monotonically():
+    labels = pd.Series([0] * 100 + [1] * 10)
+    ratios = [
+        (compute_tempered_alpha(labels, num_classes=2, tau=tau)[1]
+         / compute_tempered_alpha(labels, num_classes=2, tau=tau)[0]).item()
+        for tau in (0.0, 0.25, 0.5, 1.0)
+    ]
+    assert ratios == sorted(ratios), "rare-class:common-class alpha ratio must increase monotonically with tau"
 
 
 def test_focal_loss_alpha_upweights_rare_class_errors():

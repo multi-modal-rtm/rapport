@@ -19,7 +19,7 @@ from rapport.data import MELDCachedDataset, collate_dialogues
 from rapport.data.constants import EMOTION_LABELS
 from rapport.eval.report import evaluate_and_report
 from rapport.models.social_gnn import SocialGNN
-from rapport.training.losses import FocalLoss, compute_inverse_frequency_alpha
+from rapport.training.losses import FocalLoss, compute_tempered_alpha
 
 NUM_CLASSES = len(EMOTION_LABELS)
 
@@ -73,7 +73,9 @@ def train(cfg: DictConfig, run_dir: Path) -> dict:
 
     optimizer = AdamW(model.parameters(), lr=cfg.training.lr)
     scheduler = CosineAnnealingLR(optimizer, T_max=cfg.training.max_epochs)
-    alpha = compute_inverse_frequency_alpha(loaders["train"].dataset.index_df["label"], NUM_CLASSES).to(device)
+    alpha = compute_tempered_alpha(
+        loaders["train"].dataset.index_df["label"], NUM_CLASSES, tau=cfg.training.focal_tau
+    ).to(device)
     criterion = FocalLoss(gamma=cfg.training.focal_gamma, ignore_index=-1, alpha=alpha)
 
     writer = SummaryWriter(log_dir=str(run_dir / "tensorboard"))
