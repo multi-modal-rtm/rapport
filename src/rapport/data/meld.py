@@ -100,10 +100,18 @@ class MELDCachedDataset(_MELDDialogueDatasetBase):
 
     FEATURE_DIM = 768
 
-    def __init__(self, index_path: str | Path, cache_dir: str | Path):
+    def __init__(self, index_path: str | Path, cache_dir: str | Path, text_cache_subdir: str = "text"):
+        """`text_cache_subdir` selects which cached text representation to load
+        for the "text" modality -- "text" (default) is the frozen, non-contextual
+        RoBERTa cache used by `speaker_only`; "text_ctx" is Phase T's frozen
+        contextual encoder cache (docs/PHASE_N4.md Step 0), used by the RAPPORT
+        fusion configs (base_fusion, full, minus_*). Video/audio always come
+        from their own frozen caches regardless of this setting.
+        """
         super().__init__(index_path)
         self.cache_dir = Path(cache_dir)
         self.split = Path(index_path).stem
+        self.text_cache_subdir = text_cache_subdir
 
     def _load_feature(self, modality: str, dialogue_id: int, utterance_id: int) -> torch.Tensor:
         path = self.cache_dir / modality / self.split / f"dia{dialogue_id}_utt{utterance_id}.pt"
@@ -123,7 +131,7 @@ class MELDCachedDataset(_MELDDialogueDatasetBase):
         for row in dialogue.itertuples(index=False):
             video_feat.append(self._load_feature("video", row.dialogue_id, row.utterance_id))
             audio_feat.append(self._load_feature("audio", row.dialogue_id, row.utterance_id))
-            text_feat.append(self._load_feature("text", row.dialogue_id, row.utterance_id))
+            text_feat.append(self._load_feature(self.text_cache_subdir, row.dialogue_id, row.utterance_id))
 
         return {
             "dialogue_id": int(dialogue["dialogue_id"].iloc[0]),

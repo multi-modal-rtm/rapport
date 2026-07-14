@@ -85,3 +85,64 @@ embeddings carry strong, intact signal). This is the new context-aware
 feature ceiling reference for Phase N4's fusion configs.
 
 **Step 0 complete.** Next: Step 1, `base_fusion`.
+
+---
+
+## STEP 1 — `base_fusion` (the ablation matrix's internal baseline)
+
+`src/rapport/models/rapport_model.py`'s `RapportModel` (all flags off):
+`U_e = ReLU(W_proj[text_ctx||A||V]+b)` — structurally identical to
+`SocialGNN`'s existing fusion layer, just fed the Phase T `text_ctx` cache
+instead of the old frozen non-contextual text cache — then the unchanged
+v1-style per-speaker GAT+GRUCell node update and classifier
+(`rapport.models.social_gnn.GraphAttentionLayer` reused directly, not
+reimplemented). `MELDCachedDataset` gained a `text_cache_subdir` param
+(default `"text"`, set to `"text_ctx"` here) so both text caches remain
+available side by side.
+
+**Recipe exceptions for Phase N4** (documented, not a silent change):
+loss is plain CE (`nn.CrossEntropyLoss`, no focal/tempered-alpha), and
+checkpoint selection / early stopping use **val macro F1**, not
+RECIPE.md's original val weighted F1 convention. A frozen post-hoc
+tau=0.25 adjustment (from Phase T) is applied at eval time as a secondary
+reported score only, never for selection. Optimizer (AdamW lr=1e-4),
+cosine schedule, dropout 0.5, hidden dim 256, max 100 epochs, early stop
+patience 10, bf16 — all unchanged from RECIPE.md's locked GNN values.
+
+Unit tests (`tests/test_rapport_model.py`, 4 tests): forward is finite
+with audio/video zeroed (text_ctx-only pathway); the model actually
+trains and perfectly fits a tiny synthetic batch under that same
+zeroed-A/V condition; bit-for-bit reproducibility given a fixed seed;
+`relational=True`/`shift=True`/`temporal=True` raise `NotImplementedError`
+until their respective steps land.
+
+### `base_fusion` seed 42 result
+
+`docs/train_base_fusion_seed42.log`, `outputs/base_fusion_seed42/metrics.json`.
+Early-stopped at epoch 22 (best: epoch 12, avg 7.96s/epoch, ~3 min wall
+clock).
+
+| metric | raw | tau_eval=0.25 |
+|---|---|---|
+| weighted F1 | 0.6345 | 0.6393 |
+| macro F1 | 0.4359 | 0.4601 |
+| accuracy | 0.6533 | — |
+| neutral | 0.796 | 0.792 |
+| joy | 0.611 | 0.611 |
+| sadness | 0.355 | 0.383 |
+| anger | 0.460 | 0.472 |
+| surprise | 0.578 | 0.579 |
+| fear | 0.065 | 0.158 |
+| disgust | 0.186 | 0.226 |
+| all 7 nonzero | yes | yes |
+
+`base_fusion`'s raw weighted F1 (0.6345) lands essentially at the Phase T
+text-only anchor (0.6403 mean) — consistent with text_ctx being the
+dominant modality and audio/video contributing comparatively little at
+this fusion depth, matching every prior linear-probe finding in this
+project (`docs/DIAGNOSIS.md`: text >> audio > video). This is the
+internal baseline the relational/shift/temporal ablations will be
+measured against, not yet a result to gate on (Step 6 does that with all
+3 seeds of the `full` config).
+
+**Step 1 complete.** Next: Step 2, relational edge memory.
