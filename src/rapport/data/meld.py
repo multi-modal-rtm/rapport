@@ -133,7 +133,7 @@ class MELDCachedDataset(_MELDDialogueDatasetBase):
             audio_feat.append(self._load_feature("audio", row.dialogue_id, row.utterance_id))
             text_feat.append(self._load_feature(self.text_cache_subdir, row.dialogue_id, row.utterance_id))
 
-        return {
+        item = {
             "dialogue_id": int(dialogue["dialogue_id"].iloc[0]),
             "speaker_ids": torch.tensor(dialogue["speaker_id"].tolist(), dtype=torch.long),
             "labels": torch.tensor(dialogue["label"].tolist(), dtype=torch.long),
@@ -141,3 +141,9 @@ class MELDCachedDataset(_MELDDialogueDatasetBase):
             "audio_feat": torch.stack(audio_feat),
             "text_feat": torch.stack(text_feat),
         }
+
+        if "shift_label" in dialogue.columns:
+            item["shift_label"] = torch.tensor(dialogue["shift_label"].tolist(), dtype=torch.float32)
+            item["shift_mask"] = torch.tensor(dialogue["shift_mask"].tolist(), dtype=torch.float32)
+
+        return item

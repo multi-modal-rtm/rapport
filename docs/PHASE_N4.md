@@ -146,3 +146,84 @@ measured against, not yet a result to gate on (Step 6 does that with all
 3 seeds of the `full` config).
 
 **Step 1 complete.** Next: Step 2, relational edge memory.
+
+---
+
+## STEP 2 — Relational edge memory
+
+`src/rapport/models/relational_memory.py` (`pair_index` +
+`RelationalEdgeMemory`) implements spec section A exactly: canonical
+triangular pair indexing, one shared `GRUCell` for incident-only edge
+updates, GATv2-style edge-conditioned attention/messages, plain-mean
+readout term. Wired into `RapportModel._forward_relational`
+(`src/rapport/models/rapport_model.py`); the non-relational path
+(`_forward_base`) is untouched, byte-for-byte the same code as Step 1.
+
+**Wiring decision the spec left open** (recorded in full in
+`docs/SPEC_RAPPORT_COMPONENTS.md`'s Implementation decisions): the
+edge-conditioned attention context feeds the node GRU's **input** (concatenated
+with the utterance embedding), while the speaker's own raw previous state
+stays the GRU's **hidden** argument — keeping "my own history" and "what
+I'm picking up about my relationships" as separate signals rather than
+pre-mixed, since edges carry no self-information to begin with (no i=i
+pairs). Classifier input dim: `HIDDEN_DIM` (256) for `relational=False`,
+`HIDDEN_DIM + EDGE_DIM` (256+128=384) for `relational=True` — two separate
+`nn.Linear` layers, not a shared one, so A7 has zero risk of an accidental
+shape interaction.
+
+### Test coverage (A9)
+
+- Module-level (`tests/test_relational_memory.py`, 11 tests): `pair_index`
+  bijectivity/contiguity/symmetry/self-pair rejection; incident-only
+  updates leave non-incident edges untouched; implicit-zero-init matches a
+  hand-reproduced GRU call; ordering (attend() is sensitive to
+  fresh-vs-stale edge values, proving update-then-attend actually
+  matters); isolated-speaker zero fallbacks (attend, edge_mean); edge_mean
+  averages only incident edges; N=2 dyadic case; gradient flow to every
+  parameter.
+- Model-level (`tests/test_rapport_model_relational.py`, 5 tests): finite
+  forward; N=2 dyadic end-to-end; **A7** — `relational=False`'s public
+  `forward()` output is bit-for-bit `torch.equal` to a direct call to
+  `_forward_base` on the same fixed input/weights; per-dialogue reset — two
+  different dialogues in a batch that happen to reuse the same *local*
+  speaker-id numbering (0, 1) produce independent outputs whether run
+  alone or batched together (`allclose`, same isolation pattern
+  `docs/DIAGNOSIS.md`'s graph-state-isolation test used for the original
+  `SocialGNN`); gradient flow to every parameter, relational and shared.
+
+All 20 tests pass (11 + 5, plus 4 carried over from Step 1's
+`test_rapport_model.py`).
+
+### Diagnostic run — relational-only, seed 42 (not a final ablation-matrix cell)
+
+Not one of the 5 configs in Step 5's matrix (`full` /
+`minus_relational` / `minus_shift` / `minus_temporal` / `base_fusion` —
+all of which pair relational with the not-yet-implemented shift/temporal
+flags except `minus_shift`/`minus_temporal`/`base_fusion`), but run here
+purely to confirm the new code path trains end-to-end before moving on,
+mirroring how Step 1 needed a real training run to validate `base_fusion`.
+`docs/train_relational_only_seed42_diagnostic.log`. ~15s/epoch (vs.
+`base_fusion`'s ~8s/epoch — expected, from the per-active-speaker Python
+loop the variable neighbor-count attention requires).
+
+Early-stopped at epoch 19 (best: epoch 9, avg 14.86s/epoch, ~5 min wall
+clock — roughly 2x base_fusion's per-epoch time, from the per-active-speaker
+Python loop the variable-neighbor-count attention requires; no batching
+optimization attempted, not currently a bottleneck at this scale).
+
+| metric | raw | tau_eval=0.25 |
+|---|---|---|
+| weighted F1 | 0.6383 | 0.6374 |
+| macro F1 | 0.4348 | 0.4329 |
+| accuracy | 0.6559 | — |
+| all 7 nonzero | yes | yes |
+
+Comparable to `base_fusion`'s seed-42 result (raw weighted F1 0.6345,
+macro F1 0.4359) — relational memory alone, on a single seed, isn't
+dramatically better or worse here. Expected: this diagnostic isn't a fair
+test of the relational component's value (that's Step 6's `full` vs
+`minus_relational` 3-seed delta, with shift and temporal also present);
+it exists purely to confirm the code path trains end-to-end without
+pathology before moving on, which it does.
+
+**Step 2 complete.** Next: Step 3, shift objective.

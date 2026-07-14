@@ -88,6 +88,14 @@ def collate_dialogues(batch: list[dict]) -> dict:
         out["audio_feat"] = _pad_stack([item["audio_feat"] for item in batch], max_len, pad_value=0.0)
         out["text_feat"] = _pad_stack([item["text_feat"] for item in batch], max_len, pad_value=0.0)
 
+    if "shift_label" in batch[0]:
+        # pad_value=0 for both -- padded positions are already excluded via
+        # dialogue_mask, and shift_mask=0 additionally excludes a real
+        # utterance's own first-per-speaker position (spec B1); the padded
+        # shift_label value is never read either way.
+        out["shift_label"] = _pad_stack([item["shift_label"] for item in batch], max_len, pad_value=0.0)
+        out["shift_mask"] = _pad_stack([item["shift_mask"] for item in batch], max_len, pad_value=0.0)
+
     if "waveforms" in batch[0]:
         out["waveforms"], out["audio_lengths"] = _pad_waveforms(
             [item["waveforms"] for item in batch], max_len

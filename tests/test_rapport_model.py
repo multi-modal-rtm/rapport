@@ -82,8 +82,6 @@ def test_not_implemented_flags_raise_clearly():
     import pytest
 
     with pytest.raises(NotImplementedError):
-        RapportModel(num_classes=NUM_CLASSES, relational=True)
-    with pytest.raises(NotImplementedError):
         RapportModel(num_classes=NUM_CLASSES, shift=True)
     with pytest.raises(NotImplementedError):
         RapportModel(num_classes=NUM_CLASSES, temporal=True)

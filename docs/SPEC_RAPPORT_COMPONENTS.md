@@ -120,4 +120,50 @@ parameter count reported in the trainable-params breakdown.**
 Filled in during implementation, whenever the spec above is silent on a
 concrete choice. Each entry: what was undecided, what was chosen, why.
 
-*(empty at spec-save time — populated as PHASE N4 proceeds)*
+### A. Relational edge memory: how the attention context feeds the node GRU
+
+**Undecided:** section A5 specifies the GATv2-style attention/message
+formulas and says (A4) "the node update reads edge states t", but doesn't
+pin down exactly how the resulting attention context combines with the
+speaker's own previous hidden state inside the node GRU update.
+
+**Chosen:** the edge-conditioned attention context `context_s` (aggregated
+from OTHER speakers only -- edges are never self-pairs, so there's no
+self-loop) is concatenated with the utterance embedding `U_e` and fed as
+the GRUCell's **input** (`nn.GRUCell(FUSION_DIM + EDGE_DIM, HIDDEN_DIM)`),
+while the speaker's own raw previous state `h_{s,t-1}` remains the GRUCell's
+**hidden** argument, unchanged in kind from the base_fusion path. Contrast
+with the non-relational path, where the plain (self-attending)
+`GraphAttentionLayer` conflates "my own history" and "everyone's history,
+attention-weighted" into a single value that becomes the GRU's hidden
+input.
+
+**Why:** relational edges by construction carry no self-information (A1: P
+= N(N-1)/2, no i=i pairs), so there is no edge-based way to represent "my
+own history" the way the base GAT's self-attention incidentally can. Since
+the node update must still remember its own trajectory, the cleanest
+separation of concerns is: hidden state = pure recurrent self-memory
+(matches the non-relational path's role for the GRU's hidden argument),
+input = "what I said this turn" + "what I'm picking up about my
+relationships" (the new edge-conditioned signal). This keeps the two
+information sources distinguishable rather than pre-mixed, and requires no
+change to how h_{s,t-1} is retrieved/stored (same dict-based per-speaker
+state as the base path) -- only the GRUCell's input size and the source of
+its second input tensor differ. Implemented in
+`rapport.models.rapport_model.RapportModel._forward_relational`.
+
+### A6. Classifier input dimension
+
+**Undecided:** the spec's readout formula, `[h_{s,t} || mean_j e_{sj,t}]`,
+implies a classifier input dimension of `HIDDEN_DIM + EDGE_DIM` for the
+relational path, larger than the non-relational path's `HIDDEN_DIM` alone,
+but doesn't say whether to keep a separate classifier per path or project
+down to a shared dimension first.
+
+**Chosen:** a separate `nn.Linear` classifier per path (`HIDDEN_DIM` in
+for `relational=False`, `HIDDEN_DIM + EDGE_DIM` in for `relational=True`),
+not a shared classifier with a projection layer. This is the simplest
+option that satisfies A7 (relational=False's classifier must be bit-for-bit
+identical to Step 1's, which only ever saw a `HIDDEN_DIM`-wide input) with
+zero risk of an accidental shape/projection interaction between the two
+paths.
