@@ -1,0 +1,47 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/197 [00:00<?, ?it/s]Loading weights: 100%|██████████| 197/197 [00:00<00:00, 8233.96it/s]
+[transformers] [1mRobertaModel LOAD REPORT[0m from: roberta-base
+Key                       | Status     |  | 
+--------------------------+------------+--+-
+lm_head.dense.weight      | UNEXPECTED |  | 
+lm_head.dense.bias        | UNEXPECTED |  | 
+lm_head.layer_norm.bias   | UNEXPECTED |  | 
+lm_head.bias              | UNEXPECTED |  | 
+lm_head.layer_norm.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+/home/devops/socialarcnet-v2/.venv/lib/python3.11/site-packages/torch/autograd/graph.py:869: UserWarning: Memory Efficient attention defaults to a non-deterministic algorithm. To explicitly enable determinism call torch.use_deterministic_algorithms(True, warn_only=False). (Triggered internally at /pytorch/aten/src/ATen/native/transformers/cuda/attention_backward.cu:900.)
+  return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+[epoch 000] loss=1.5762 val_weighted_f1=0.4928 val_macro_f1=0.2986 time=18.7s lr=2.00e-04
+    raw       per_class_f1={'neutral': 0.709, 'joy': 0.545, 'sadness': 0.052, 'anger': 0.394, 'surprise': 0.39, 'fear': 0.0, 'disgust': 0.0}
+    tau=1 adj per_class_f1={'neutral': 0.432, 'joy': 0.464, 'sadness': 0.378, 'anger': 0.375, 'surprise': 0.398, 'fear': 0.0, 'disgust': 0.0} (adj_weighted_f1=0.3945 adj_macro_f1=0.2923)
+[epoch 001] loss=1.1520 val_weighted_f1=0.5635 val_macro_f1=0.3647 time=18.3s lr=1.78e-04
+    raw       per_class_f1={'neutral': 0.766, 'joy': 0.565, 'sadness': 0.288, 'anger': 0.353, 'surprise': 0.581, 'fear': 0.0, 'disgust': 0.0}
+    tau=1 adj per_class_f1={'neutral': 0.717, 'joy': 0.548, 'sadness': 0.416, 'anger': 0.358, 'surprise': 0.577, 'fear': 0.096, 'disgust': 0.231} (adj_weighted_f1=0.5613 adj_macro_f1=0.4205)
+[epoch 002] loss=1.0625 val_weighted_f1=0.5806 val_macro_f1=0.4032 time=18.4s lr=1.56e-04
+    raw       per_class_f1={'neutral': 0.75, 'joy': 0.569, 'sadness': 0.426, 'anger': 0.394, 'surprise': 0.597, 'fear': 0.0, 'disgust': 0.087}
+    tau=1 adj per_class_f1={'neutral': 0.657, 'joy': 0.548, 'sadness': 0.439, 'anger': 0.413, 'surprise': 0.583, 'fear': 0.18, 'disgust': 0.245} (adj_weighted_f1=0.5503 adj_macro_f1=0.4380)
+[epoch 003] loss=1.0190 val_weighted_f1=0.5933 val_macro_f1=0.4091 time=18.4s lr=1.33e-04
+    raw       per_class_f1={'neutral': 0.767, 'joy': 0.576, 'sadness': 0.386, 'anger': 0.444, 'surprise': 0.608, 'fear': 0.0, 'disgust': 0.083}
+    tau=1 adj per_class_f1={'neutral': 0.725, 'joy': 0.57, 'sadness': 0.453, 'anger': 0.462, 'surprise': 0.58, 'fear': 0.139, 'disgust': 0.281} (adj_weighted_f1=0.5890 adj_macro_f1=0.4587)
+[epoch 004] loss=0.9917 val_weighted_f1=0.5999 val_macro_f1=0.4135 time=18.5s lr=1.11e-04
+    raw       per_class_f1={'neutral': 0.774, 'joy': 0.582, 'sadness': 0.376, 'anger': 0.449, 'surprise': 0.631, 'fear': 0.0, 'disgust': 0.083}
+    tau=1 adj per_class_f1={'neutral': 0.755, 'joy': 0.571, 'sadness': 0.428, 'anger': 0.438, 'surprise': 0.613, 'fear': 0.225, 'disgust': 0.327} (adj_weighted_f1=0.6045 adj_macro_f1=0.4795)
+[epoch 005] loss=0.9659 val_weighted_f1=0.6125 val_macro_f1=0.4353 time=18.5s lr=8.89e-05
+    raw       per_class_f1={'neutral': 0.779, 'joy': 0.594, 'sadness': 0.429, 'anger': 0.444, 'surprise': 0.639, 'fear': 0.085, 'disgust': 0.077}
+    tau=1 adj per_class_f1={'neutral': 0.73, 'joy': 0.596, 'sadness': 0.425, 'anger': 0.432, 'surprise': 0.602, 'fear': 0.176, 'disgust': 0.286} (adj_weighted_f1=0.5923 adj_macro_f1=0.4637)
+[epoch 006] loss=0.9429 val_weighted_f1=0.6093 val_macro_f1=0.4481 time=18.5s lr=6.67e-05
+    raw       per_class_f1={'neutral': 0.772, 'joy': 0.582, 'sadness': 0.426, 'anger': 0.454, 'surprise': 0.617, 'fear': 0.154, 'disgust': 0.133}
+    tau=1 adj per_class_f1={'neutral': 0.675, 'joy': 0.586, 'sadness': 0.422, 'anger': 0.486, 'surprise': 0.614, 'fear': 0.182, 'disgust': 0.229} (adj_weighted_f1=0.5758 adj_macro_f1=0.4564)
+[epoch 007] loss=0.9207 val_weighted_f1=0.6098 val_macro_f1=0.4475 time=18.4s lr=4.44e-05
+    raw       per_class_f1={'neutral': 0.772, 'joy': 0.579, 'sadness': 0.402, 'anger': 0.473, 'surprise': 0.622, 'fear': 0.151, 'disgust': 0.133}
+    tau=1 adj per_class_f1={'neutral': 0.682, 'joy': 0.586, 'sadness': 0.429, 'anger': 0.504, 'surprise': 0.598, 'fear': 0.214, 'disgust': 0.264} (adj_weighted_f1=0.5812 adj_macro_f1=0.4680)
+[epoch 008] loss=0.9080 val_weighted_f1=0.6184 val_macro_f1=0.4568 time=18.0s lr=2.22e-05
+    raw       per_class_f1={'neutral': 0.774, 'joy': 0.599, 'sadness': 0.419, 'anger': 0.481, 'surprise': 0.635, 'fear': 0.151, 'disgust': 0.138}
+    tau=1 adj per_class_f1={'neutral': 0.704, 'joy': 0.597, 'sadness': 0.465, 'anger': 0.488, 'surprise': 0.621, 'fear': 0.203, 'disgust': 0.297} (adj_weighted_f1=0.5973 adj_macro_f1=0.4823)
+[epoch 009] loss=0.8980 val_weighted_f1=0.6145 val_macro_f1=0.4533 time=18.5s lr=0.00e+00
+    raw       per_class_f1={'neutral': 0.774, 'joy': 0.588, 'sadness': 0.413, 'anger': 0.474, 'surprise': 0.631, 'fear': 0.151, 'disgust': 0.143}
+    tau=1 adj per_class_f1={'neutral': 0.709, 'joy': 0.595, 'sadness': 0.451, 'anger': 0.473, 'surprise': 0.621, 'fear': 0.204, 'disgust': 0.27} (adj_weighted_f1=0.5948 adj_macro_f1=0.4747)
+[done] run_name=context_text_plain_ce_seed2024 loss=ce test_weighted_f1=0.6415 test_macro_f1=0.4587 test_accuracy=0.6582 all_7_classes_nonzero=True best_epoch=8 avg_epoch_time_sec=18.42
+[done] posthoc_candidate_tau_eval=0.25 test_posthoc_adjusted_result={'tau_eval': 0.25, 'weighted_f1': 0.6408062547787456, 'macro_f1': 0.4658520063852536, 'per_class_f1': {'neutral': 0.7946708463949843, 'joy': 0.5997490589711418, 'sadness': 0.3865546218487395, 'anger': 0.49056603773584906, 'surprise': 0.5630498533724341, 'fear': 0.1978021978021978, 'disgust': 0.22857142857142856}, 'all_classes_nonzero': True, 'passes_amended_gate': True}

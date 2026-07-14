@@ -20,12 +20,36 @@ no frozen backbone), which is a different regime the locked recipe was
 never calibrated against (different optimizer regime — from-scratch adapter
 tuning at lr=2e-4 vs. the locked lr=1e-4; different batching — by utterance,
 not by dialogue; no recurrent/graph state to even apply focal loss's
-per-timestep alpha weighting against in the same way). Phase T's loss is
-**CE + logit adjustment (Menon et al. 2021)**, not focal + tempered alpha —
-see `src/rapport/training/losses.py`'s `LogitAdjustedLoss`. This is a
-scope boundary, not a reopening of the freeze: the table below still
-applies unchanged to every GNN-based config once Phase T's encoder is
-integrated into one.
+per-timestep alpha weighting against in the same way). This is a scope
+boundary, not a reopening of the freeze: the table below still applies
+unchanged to every GNN-based config once Phase T's encoder is integrated
+into one.
+
+### Phase T frozen recipe (final, as of the gate-failure diagnosis — `docs/PHASE_T_DIAGNOSIS.md` / `docs/PHASE_T_STEP4.md`)
+
+**Training:** roberta-base + LoRA (r=8, alpha=16, dropout=0.05,
+target=[query,value]), masked-mean pooling over `last_hidden_state`,
+**plain cross-entropy loss** (`nn.CrossEntropyLoss`, no adjustment at train
+time), AdamW lr=2e-4, linear warmup 10%, max 10 epochs, early stop patience
+3 on val macro F1, bf16, batch by utterance (batch size 32), context k=8,
+max_length=256.
+
+**Inference:** post-hoc-only logit adjustment (Menon et al. 2021's *other*
+variant), `logits - tau_eval*log(prior)`, **tau_eval=0.25** — selected once
+on seed 42's val split (highest val macro F1 subject to all-7-nonzero AND
+val weighted F1 >= 0.58), then frozen and applied identically to seeds
+1337/2024, per this project's established tau-freezing convention
+(Amendment 2 below).
+
+**Superseded:** the original Phase T recipe trained with logit adjustment
+baked into the loss itself (`LogitAdjustedLoss`, tau=1.0, "CE + LA") and
+used raw logits at eval with no post-hoc step. That recipe passed weighted
+F1 (0.6041) but produced a systematic fear/disgust collapse (both exactly
+0.0 test F1) that the diagnosis traced to the *training* loss, not the
+representation or an implementation bug — see `docs/PHASE_T_DIAGNOSIS.md`.
+`LogitAdjustedLoss` (`src/rapport/training/losses.py`) is kept in the
+codebase (used by `scripts/train_context_text.py --loss la` for
+regression/comparison purposes) but is **not** the frozen recipe.
 
 ## Locked recipe (final)
 

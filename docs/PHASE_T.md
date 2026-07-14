@@ -141,3 +141,9 @@ say not to do below 0.57, and this case isn't even below 0.57).
 run** — neither pre-registered trigger condition is met. Stopping here and
 flagging back for direction on how to treat a weighted-F1 pass combined
 with a classes-nonzero fail, rather than deciding unilaterally.
+
+**RESOLVED:** see `docs/PHASE_T_DIAGNOSIS.md` and `docs/PHASE_T_STEP4.md`.
+The fear/disgust collapse was traced to training with logit adjustment
+baked into the loss; switching to plain CE training + post-hoc-only
+adjustment (frozen tau_eval=0.25) produced a clean 3/3-seed pass on both
+the original and amended gate. Frozen recipe: `docs/RECIPE.md`.

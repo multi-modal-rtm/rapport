@@ -36,6 +36,7 @@ from transformers import AutoTokenizer
 
 from rapport.data.constants import EMOTION_LABELS
 from rapport.data.context_text import ContextTextCollator, MELDContextTextDataset
+from rapport.eval.rank_diagnostics import posthoc_adjustment_sweep, rank_of_true_class_stats
 from rapport.models.text_classifier import ContextTextClassifier
 from rapport.training.losses import compute_class_priors
 
@@ -79,46 +80,17 @@ def step2_prediction_anatomy(logits: torch.Tensor, labels: torch.Tensor) -> dict
     pred_hist = {EMOTION_LABELS[c]: int((preds == c).sum()) for c in range(NUM_CLASSES)}
     true_hist = {EMOTION_LABELS[c]: int((labels == c).sum()) for c in range(NUM_CLASSES)}
 
-    # rank of the TRUE class within each example's logit ordering (1 = highest)
-    order = logits.argsort(dim=-1, descending=True)  # [N, C], class ids sorted by score
-    rank_of_true = (order == labels.unsqueeze(1)).float().argmax(dim=1) + 1  # [N], 1-indexed
-
-    per_class_rank_stats = {}
-    for c, name in enumerate(EMOTION_LABELS):
-        mask = labels == c
-        if mask.sum() == 0:
-            continue
-        ranks = rank_of_true[mask]
-        per_class_rank_stats[name] = {
-            "support": int(mask.sum()),
-            "mean_rank_of_true_class": float(ranks.float().mean()),
-            "median_rank_of_true_class": float(ranks.float().median()),
-            "rank_distribution": {int(r): int((ranks == r).sum()) for r in range(1, NUM_CLASSES + 1)},
-        }
-
     return {
         "predicted_class_histogram": pred_hist,
         "true_class_histogram": true_hist,
-        "per_class_rank_of_true_stats": per_class_rank_stats,
+        "per_class_rank_of_true_stats": rank_of_true_class_stats(logits, labels, EMOTION_LABELS),
     }
 
 
 def step3_posthoc_sweep(logits: torch.Tensor, labels: torch.Tensor, log_priors: torch.Tensor, taus: list[float]) -> list[dict]:
-    rows = []
-    labels_np = labels.tolist()
-    for tau in taus:
-        adjusted = logits - tau * log_priors.cpu()
-        preds = adjusted.argmax(dim=-1).tolist()
-        per_class_f1 = f1_score(labels_np, preds, average=None, labels=list(range(NUM_CLASSES)), zero_division=0)
-        rows.append(
-            {
-                "tau_eval": tau,
-                "weighted_f1": f1_score(labels_np, preds, average="weighted", zero_division=0),
-                "macro_f1": f1_score(labels_np, preds, average="macro", zero_division=0),
-                "per_class_f1": {label: float(f1) for label, f1 in zip(EMOTION_LABELS, per_class_f1)},
-                "all_7_nonzero": bool(all(f1 > 0 for f1 in per_class_f1)),
-            }
-        )
+    rows = posthoc_adjustment_sweep(logits, labels.cpu(), log_priors.cpu(), taus, EMOTION_LABELS)
+    for row in rows:
+        row["all_7_nonzero"] = row.pop("all_classes_nonzero")  # preserve this script's original key name
     return rows
 
 
