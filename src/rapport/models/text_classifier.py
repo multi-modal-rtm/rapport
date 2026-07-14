@@ -81,12 +81,20 @@ class ContextTextClassifier(nn.Module):
         assert head_params <= trainable, "classification head params must be a subset of trainable params"
         return trainable, total
 
-    def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
-        """input_ids/attention_mask: [B, L] -> logits [B, num_classes]."""
+    def encode(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
+        """input_ids/attention_mask: [B, L] -> pooled embedding [B, H] (masked mean of
+        last_hidden_state). This is the U_e utterance embedding consumed by Phase N4's
+        fusion/relational-memory pipeline (docs/SPEC_RAPPORT_COMPONENTS.md), extracted
+        separately from `forward` so callers can cache it without running the
+        classification head.
+        """
         outputs = self.encoder(input_ids=input_ids, attention_mask=attention_mask)
         tokens = outputs.last_hidden_state  # [B, L, H]
 
         mask = attention_mask.unsqueeze(-1).to(tokens.dtype)
-        pooled = (tokens * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1)
+        return (tokens * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1)
 
+    def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
+        """input_ids/attention_mask: [B, L] -> logits [B, num_classes]."""
+        pooled = self.encode(input_ids, attention_mask)
         return self.classifier(pooled)

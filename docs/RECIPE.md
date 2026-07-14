@@ -41,6 +41,13 @@ val weighted F1 >= 0.58), then frozen and applied identically to seeds
 1337/2024, per this project's established tau-freezing convention
 (Amendment 2 below).
 
+**Frozen encoder checkpoint (Phase N4 onward):** the seed-42 run of this
+recipe, `outputs/context_text_plain_ce_seed42/best_model.pt` (epoch 9, val
+macro F1 0.4530), sha256
+`447f369f02aad5297e7050a41f0ac6b0926bac70f70f467394293e4b11bb2f23`, is THE
+project text encoder for all of Phase N4 — frozen, not retrained per seed
+or per ablation config. See `docs/PHASE_N4.md` Step 0.
+
 **Superseded:** the original Phase T recipe trained with logit adjustment
 baked into the loss itself (`LogitAdjustedLoss`, tau=1.0, "CE + LA") and
 used raw logits at eval with no post-hoc step. That recipe passed weighted
