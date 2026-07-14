@@ -1,5 +1,5 @@
-outputs/
-data/
+/outputs/
+/data/
 *.ckpt
 __pycache__/
 *.pyc

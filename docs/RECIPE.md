@@ -10,6 +10,23 @@ components), not to reopen tuning of anything in this document. This file
 is the historical record of how each value was chosen, kept for
 provenance — it is not an invitation to keep adjusting them.
 
+## Scope note — Phase T (contextual text encoder) is a documented exception
+
+The locked recipe below governs the **GNN-based architectures over frozen,
+cached V/A/T features** (`speaker_only`, `full`, `minus_*`, `*_lora`).
+**Phase T** is a separate, text-only foundation-rebuild phase: a
+context-window, LoRA-tuned RoBERTa trained end-to-end (no GNN, no fusion,
+no frozen backbone), which is a different regime the locked recipe was
+never calibrated against (different optimizer regime — from-scratch adapter
+tuning at lr=2e-4 vs. the locked lr=1e-4; different batching — by utterance,
+not by dialogue; no recurrent/graph state to even apply focal loss's
+per-timestep alpha weighting against in the same way). Phase T's loss is
+**CE + logit adjustment (Menon et al. 2021)**, not focal + tempered alpha —
+see `src/rapport/training/losses.py`'s `LogitAdjustedLoss`. This is a
+scope boundary, not a reopening of the freeze: the table below still
+applies unchanged to every GNN-based config once Phase T's encoder is
+integrated into one.
+
 ## Locked recipe (final)
 
 | component | value | source |

@@ -1,0 +1,13 @@
+name: meld
+dataset: MELD
+modalities: [text, audio, video]
+data_root: ${paths.data_dir}/meld
+num_classes: 7
+label_map:
+  neutral: 0
+  joy: 1
+  sadness: 2
+  anger: 3
+  surprise: 4
+  fear: 5
+  disgust: 6

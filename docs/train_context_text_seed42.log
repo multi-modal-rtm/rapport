@@ -1,0 +1,25 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/197 [00:00<?, ?it/s]Loading weights: 100%|██████████| 197/197 [00:00<00:00, 9207.77it/s]
+[transformers] [1mRobertaModel LOAD REPORT[0m from: roberta-base
+Key                       | Status     |  | 
+--------------------------+------------+--+-
+lm_head.layer_norm.weight | UNEXPECTED |  | 
+lm_head.dense.bias        | UNEXPECTED |  | 
+lm_head.bias              | UNEXPECTED |  | 
+lm_head.layer_norm.bias   | UNEXPECTED |  | 
+lm_head.dense.weight      | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+/home/devops/socialarcnet-v2/.venv/lib/python3.11/site-packages/torch/autograd/graph.py:869: UserWarning: Memory Efficient attention defaults to a non-deterministic algorithm. To explicitly enable determinism call torch.use_deterministic_algorithms(True, warn_only=False). (Triggered internally at /pytorch/aten/src/ATen/native/transformers/cuda/attention_backward.cu:900.)
+  return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+[epoch 000] loss=2.0278 val_weighted_f1=0.2518 val_macro_f1=0.0850 time=12.5s lr=2.00e-04 per_class_f1={'neutral': 0.595, 'joy': 0.0, 'sadness': 0.0, 'anger': 0.0, 'surprise': 0.0, 'fear': 0.0, 'disgust': 0.0}
+[epoch 001] loss=1.2179 val_weighted_f1=0.4796 val_macro_f1=0.2842 time=11.1s lr=1.78e-04 per_class_f1={'neutral': 0.713, 'joy': 0.48, 'sadness': 0.035, 'anger': 0.263, 'surprise': 0.497, 'fear': 0.0, 'disgust': 0.0}
+[epoch 002] loss=1.0911 val_weighted_f1=0.5356 val_macro_f1=0.3426 time=11.6s lr=1.56e-04 per_class_f1={'neutral': 0.731, 'joy': 0.569, 'sadness': 0.197, 'anger': 0.335, 'surprise': 0.566, 'fear': 0.0, 'disgust': 0.0}
+[epoch 003] loss=1.0438 val_weighted_f1=0.5416 val_macro_f1=0.3433 time=11.0s lr=1.33e-04 per_class_f1={'neutral': 0.744, 'joy': 0.581, 'sadness': 0.16, 'anger': 0.326, 'surprise': 0.592, 'fear': 0.0, 'disgust': 0.0}
+[epoch 004] loss=1.0128 val_weighted_f1=0.5780 val_macro_f1=0.3800 time=11.4s lr=1.11e-04 per_class_f1={'neutral': 0.765, 'joy': 0.593, 'sadness': 0.299, 'anger': 0.415, 'surprise': 0.588, 'fear': 0.0, 'disgust': 0.0}
+[epoch 005] loss=0.9870 val_weighted_f1=0.5311 val_macro_f1=0.3487 time=11.3s lr=8.89e-05 per_class_f1={'neutral': 0.738, 'joy': 0.552, 'sadness': 0.255, 'anger': 0.243, 'surprise': 0.566, 'fear': 0.0, 'disgust': 0.087}
+[epoch 006] loss=0.9687 val_weighted_f1=0.5268 val_macro_f1=0.3483 time=11.4s lr=6.67e-05 per_class_f1={'neutral': 0.719, 'joy': 0.559, 'sadness': 0.211, 'anger': 0.262, 'surprise': 0.601, 'fear': 0.0, 'disgust': 0.087}
+[epoch 007] loss=0.9478 val_weighted_f1=0.5367 val_macro_f1=0.3544 time=10.9s lr=4.44e-05 per_class_f1={'neutral': 0.734, 'joy': 0.57, 'sadness': 0.224, 'anger': 0.279, 'surprise': 0.587, 'fear': 0.0, 'disgust': 0.087}
+[trainer] early stopping at epoch 7 (patience=3)
+[done] run_name=context_text_seed42 test_weighted_f1=0.6041 test_macro_f1=0.3678 test_accuracy=0.6418 all_7_classes_nonzero=False best_epoch=4 avg_epoch_time_sec=11.41

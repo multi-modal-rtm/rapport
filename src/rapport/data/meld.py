@@ -1,0 +1,135 @@
+"""MELD dialogue-level datasets for both training regimes.
+
+Design note: each __getitem__ call returns one *whole dialogue* (its ordered
+list of utterances), never a single utterance. This means a standard
+`DataLoader(shuffle=True)` only ever permutes which dialogues land in which
+batch — utterances within a dialogue are always read in their original,
+preserved order. No custom batch sampler is needed to satisfy "batch BY
+DIALOGUE, never shuffle utterances within a dialogue"; it falls out of the
+dataset's indexing granularity.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pandas as pd
+import soundfile as sf
+import torch
+from torch.utils.data import Dataset
+
+from rapport.data.constants import SAMPLE_RATE
+
+DEFAULT_TOKENIZER = "bert-base-uncased"
+
+
+def _group_by_dialogue(index_df: pd.DataFrame) -> list[pd.DataFrame]:
+    """Splits an index dataframe into per-dialogue frames, preserving utterance order."""
+    df = index_df.sort_values(["dialogue_id", "utterance_id"]).reset_index(drop=True)
+    return [group.reset_index(drop=True) for _, group in df.groupby("dialogue_id", sort=True)]
+
+
+class _MELDDialogueDatasetBase(Dataset):
+    """Shared dialogue-grouping/index logic for the raw and cached MELD datasets."""
+
+    def __init__(self, index_path: str | Path):
+        self.index_path = Path(index_path)
+        self.index_df = pd.read_parquet(self.index_path)
+        self.dialogues = _group_by_dialogue(self.index_df)
+
+    def __len__(self) -> int:
+        return len(self.dialogues)
+
+
+class MELDRawDataset(_MELDDialogueDatasetBase):
+    """Yields raw model inputs per dialogue for on-the-fly (trainable-backbone) encoding.
+
+    REGIME 2 (configs C, D): LoRA-adapted backbones are trainable, so features
+    cannot be cached — this dataset returns the preprocessed frame tensors,
+    raw audio waveforms, and tokenized text ids needed to run the backbones
+    forward every step.
+    """
+
+    def __init__(
+        self,
+        index_path: str | Path,
+        tokenizer_name: str = DEFAULT_TOKENIZER,
+        tokenizer=None,
+    ):
+        super().__init__(index_path)
+        if tokenizer is not None:
+            self.tokenizer = tokenizer
+        else:
+            from transformers import AutoTokenizer
+
+            self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
+
+    def __getitem__(self, idx: int) -> dict:
+        dialogue = self.dialogues[idx]
+        frames = torch.stack([torch.load(p, weights_only=True) for p in dialogue["frame_path"]])
+
+        waveforms = []
+        for wav_path in dialogue["wav_path"]:
+            wav, sr = sf.read(wav_path, dtype="float32")
+            assert sr == SAMPLE_RATE, f"expected {SAMPLE_RATE} Hz, got {sr} Hz for {wav_path}"
+            waveforms.append(torch.from_numpy(wav))
+
+        encoded = self.tokenizer(list(dialogue["text"]), padding=False, truncation=True)
+
+        return {
+            "dialogue_id": int(dialogue["dialogue_id"].iloc[0]),
+            "speaker_ids": torch.tensor(dialogue["speaker_id"].tolist(), dtype=torch.long),
+            "labels": torch.tensor(dialogue["label"].tolist(), dtype=torch.long),
+            "frames": frames,  # [L, NUM_FRAMES, 3, FRAME_SIZE, FRAME_SIZE]
+            "waveforms": waveforms,  # list[Tensor], length L, variable-length raw audio
+            "input_ids": [torch.tensor(ids, dtype=torch.long) for ids in encoded["input_ids"]],
+            "text": list(dialogue["text"]),
+        }
+
+
+class MELDCachedDataset(_MELDDialogueDatasetBase):
+    """Yields precomputed 768-d V/A/T feature vectors per utterance.
+
+    REGIME 1 (configs A, B): backbones are frozen, so features can be
+    extracted once (Phase 3, after the frozen backbones exist) and cached to
+    disk under cache_dir/{video,audio,text}/{split}/dia{d}_utt{u}.pt for fast
+    epochs. The split subdirectory is required: dialogue_id restarts from 0 in
+    each MELD split, so a flat layout silently collides utterances across
+    train/dev/test.
+    """
+
+    FEATURE_DIM = 768
+
+    def __init__(self, index_path: str | Path, cache_dir: str | Path):
+        super().__init__(index_path)
+        self.cache_dir = Path(cache_dir)
+        self.split = Path(index_path).stem
+
+    def _load_feature(self, modality: str, dialogue_id: int, utterance_id: int) -> torch.Tensor:
+        path = self.cache_dir / modality / self.split / f"dia{dialogue_id}_utt{utterance_id}.pt"
+        if not path.exists():
+            raise FileNotFoundError(
+                f"Missing cached {modality} feature at {path}. MELDCachedDataset requires "
+                "the Phase 3 feature-extraction pass (frozen backbones) to have run first."
+            )
+        feat = torch.load(path, weights_only=True)
+        if tuple(feat.shape) != (self.FEATURE_DIM,):
+            raise ValueError(f"expected shape ({self.FEATURE_DIM},), got {tuple(feat.shape)} at {path}")
+        return feat
+
+    def __getitem__(self, idx: int) -> dict:
+        dialogue = self.dialogues[idx]
+        video_feat, audio_feat, text_feat = [], [], []
+        for row in dialogue.itertuples(index=False):
+            video_feat.append(self._load_feature("video", row.dialogue_id, row.utterance_id))
+            audio_feat.append(self._load_feature("audio", row.dialogue_id, row.utterance_id))
+            text_feat.append(self._load_feature("text", row.dialogue_id, row.utterance_id))
+
+        return {
+            "dialogue_id": int(dialogue["dialogue_id"].iloc[0]),
+            "speaker_ids": torch.tensor(dialogue["speaker_id"].tolist(), dtype=torch.long),
+            "labels": torch.tensor(dialogue["label"].tolist(), dtype=torch.long),
+            "video_feat": torch.stack(video_feat),
+            "audio_feat": torch.stack(audio_feat),
+            "text_feat": torch.stack(text_feat),
+        }

@@ -1,0 +1,7 @@
+# Stub — IEMOCAP integration not yet implemented.
+name: iemocap
+dataset: IEMOCAP
+modalities: [text, audio, video]
+data_root: ${paths.data_dir}/iemocap
+num_classes: 6
+label_map: {} # TODO: fill in when IEMOCAP integration begins
