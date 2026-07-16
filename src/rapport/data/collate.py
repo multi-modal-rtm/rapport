@@ -43,6 +43,31 @@ def _pad_waveforms(
     return padded, lengths
 
 
+def _pad_token_sequences(
+    batch_sequences: list[list[torch.Tensor]], max_dialogue_len: int
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Pads a batch of per-dialogue lists of variable-length [T_i, dim]
+    token sequences (e.g. audio_tokens) into [B, max_dialogue_len, T_max, dim]
+    plus a boolean [B, max_dialogue_len, T_max] mask (True = real token).
+    Same two-level padding shape as `_pad_token_ids`, generalized to
+    float feature vectors instead of integer ids.
+    """
+    all_seqs = [seq for dialogue in batch_sequences for seq in dialogue]
+    dim = all_seqs[0].shape[-1]
+    max_t = max((seq.shape[0] for seq in all_seqs), default=0)
+
+    batch_size = len(batch_sequences)
+    padded = torch.zeros(batch_size, max_dialogue_len, max_t, dim)
+    mask = torch.zeros(batch_size, max_dialogue_len, max_t, dtype=torch.bool)
+
+    for i, dialogue in enumerate(batch_sequences):
+        for j, seq in enumerate(dialogue):
+            padded[i, j, : seq.shape[0]] = seq
+            mask[i, j, : seq.shape[0]] = True
+
+    return padded, mask
+
+
 def _pad_token_ids(
     batch_ids: list[list[torch.Tensor]], max_dialogue_len: int, pad_token_id: int = 0
 ) -> tuple[torch.Tensor, torch.Tensor]:
@@ -87,6 +112,14 @@ def collate_dialogues(batch: list[dict]) -> dict:
         out["video_feat"] = _pad_stack([item["video_feat"] for item in batch], max_len, pad_value=0.0)
         out["audio_feat"] = _pad_stack([item["audio_feat"] for item in batch], max_len, pad_value=0.0)
         out["text_feat"] = _pad_stack([item["text_feat"] for item in batch], max_len, pad_value=0.0)
+
+    if "video_tokens" in batch[0]:
+        out["video_tokens"], out["video_tokens_mask"] = _pad_token_sequences(
+            [item["video_tokens"] for item in batch], max_len
+        )
+        out["audio_tokens"], out["audio_tokens_mask"] = _pad_token_sequences(
+            [item["audio_tokens"] for item in batch], max_len
+        )
 
     if "shift_label" in batch[0]:
         # pad_value=0 for both -- padded positions are already excluded via

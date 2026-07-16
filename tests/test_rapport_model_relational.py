@@ -24,7 +24,7 @@ def _dialogue(length: int, num_speakers: int, seed: int) -> dict:
 def test_relational_forward_is_finite():
     d = _dialogue(length=10, num_speakers=4, seed=0)
     model = RapportModel(num_classes=NUM_CLASSES, relational=True)
-    logits = model(d["video_feat"], d["audio_feat"], d["text_feat"], d["speaker_ids"], d["dialogue_mask"])
+    logits, _ = model(d["video_feat"], d["audio_feat"], d["text_feat"], d["speaker_ids"], d["dialogue_mask"])
     assert logits.shape == (1, 10, NUM_CLASSES)
     assert torch.isfinite(logits).all()
 
@@ -35,7 +35,7 @@ def test_dyadic_n2_runs_without_error():
     """
     d = _dialogue(length=8, num_speakers=2, seed=1)
     model = RapportModel(num_classes=NUM_CLASSES, relational=True)
-    logits = model(d["video_feat"], d["audio_feat"], d["text_feat"], d["speaker_ids"], d["dialogue_mask"])
+    logits, _ = model(d["video_feat"], d["audio_feat"], d["text_feat"], d["speaker_ids"], d["dialogue_mask"])
     assert torch.isfinite(logits).all()
 
 
@@ -52,8 +52,8 @@ def test_a7_relational_false_reproduces_base_fusion_bit_for_bit():
     model.eval()
 
     with torch.no_grad():
-        out_forward = model(d["video_feat"], d["audio_feat"], d["text_feat"], d["speaker_ids"], d["dialogue_mask"])
-        out_base_explicit = model._forward_base(
+        out_forward, _ = model(d["video_feat"], d["audio_feat"], d["text_feat"], d["speaker_ids"], d["dialogue_mask"])
+        out_base_explicit, _ = model._forward_base(
             d["video_feat"], d["audio_feat"], d["text_feat"], d["speaker_ids"], d["dialogue_mask"]
         )
 
@@ -84,15 +84,15 @@ def test_per_dialogue_reset_two_dialogues_same_speaker_ids_dont_share_edges():
     text_b = torch.randn(1, length, 768, generator=g2) * 50
 
     with torch.no_grad():
-        out_a_alone = model(video_a, audio_a, text_a, speaker_ids, dialogue_mask)
-        out_b_alone = model(video_b, audio_b, text_b, speaker_ids, dialogue_mask)
+        out_a_alone, _ = model(video_a, audio_a, text_a, speaker_ids, dialogue_mask)
+        out_b_alone, _ = model(video_b, audio_b, text_b, speaker_ids, dialogue_mask)
 
         video_batch = torch.cat([video_a, video_b], dim=0)
         audio_batch = torch.cat([audio_a, audio_b], dim=0)
         text_batch = torch.cat([text_a, text_b], dim=0)
         speaker_batch = torch.cat([speaker_ids, speaker_ids], dim=0)
         mask_batch = torch.cat([dialogue_mask, dialogue_mask], dim=0)
-        out_batched = model(video_batch, audio_batch, text_batch, speaker_batch, mask_batch)
+        out_batched, _ = model(video_batch, audio_batch, text_batch, speaker_batch, mask_batch)
 
     assert torch.allclose(out_a_alone[0], out_batched[0], atol=1e-5)
     assert torch.allclose(out_b_alone[0], out_batched[1], atol=1e-5)
@@ -103,7 +103,7 @@ def test_gradient_flows_to_all_relational_and_shared_parameters():
     torch.manual_seed(0)
     model = RapportModel(num_classes=NUM_CLASSES, relational=True)
 
-    logits = model(d["video_feat"], d["audio_feat"], d["text_feat"], d["speaker_ids"], d["dialogue_mask"])
+    logits, _ = model(d["video_feat"], d["audio_feat"], d["text_feat"], d["speaker_ids"], d["dialogue_mask"])
     logits.sum().backward()
 
     for name, param in model.named_parameters():

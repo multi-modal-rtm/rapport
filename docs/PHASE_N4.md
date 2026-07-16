@@ -227,3 +227,162 @@ it exists purely to confirm the code path trains end-to-end without
 pathology before moving on, which it does.
 
 **Step 2 complete.** Next: Step 3, shift objective.
+
+---
+
+## STEP 3 — Emotion-shift auxiliary objective
+
+**B1/B2 (labels + stats):** `rapport.data.shift_labels.add_shift_labels`
+(7 unit tests) derives `shift_label`/`shift_mask` into the processed
+parquets; `docs/SHIFT_LABEL_STATS.md` confirms the method's premise
+cleanly across all 3 splits (no flag raised) — minority classes'
+eligible-row shift rates are 1.5-2.1x neutral's (e.g. test split: neutral
+0.39 vs fear 0.92, disgust 0.85, surprise 0.76).
+
+**B3/B4 (model + loss):** `RapportModel(shift=True)` adds
+`nn.Linear(HIDDEN_DIM, 1)` applied to the raw node state `h_{s,t}` (not
+the edge-augmented readout the emotion classifier sees), in both the
+relational and non-relational paths — `forward()` now always returns
+`(emotion_logits, shift_logits)`, `shift_logits=None` when `shift=False`
+(recorded in `docs/SPEC_RAPPORT_COMPONENTS.md`'s Implementation
+decisions). `scripts/train_rapport.py`: `BCEWithLogitsLoss(pos_weight=...)`
+computed from the TRAIN split's shift rate (0.7928), combined as
+`L = L_CE_emotion + 0.5 * L_shift` with masked positions (batch padding
+AND each speaker's first-in-dialogue utterance) excluded via boolean
+indexing before the loss call.
+
+**B5 (selection):** unchanged — checkpoint selection and early stopping
+remain on EMOTION val macro F1 only; shift F1 is computed and logged every
+epoch (`val_shift_f1` in `history`) purely as an auxiliary metric.
+
+**B6 (tests):** `tests/test_shift_labels.py` (7, label derivation + toy
+dialogue + pos_weight) + `tests/test_rapport_model_shift.py` (5: shift
+logits shape/None-when-disabled, works with `relational=True` too, masked
+positions contribute exactly zero gradient — verified by flipping a
+masked position's label and confirming bit-identical loss/gradients with
+dropout disabled to remove an unrelated source of run-to-run noise — and
+the combined CE+shift loss trains a tiny synthetic batch to perfect
+emotion accuracy). All pass.
+
+### Diagnostic run — shift-only, seed 42 (not a final ablation-matrix cell)
+
+`docs/train_shift_only_seed42_diagnostic.log`, run purely to confirm the
+combined-loss training loop is sane end-to-end (mirrors Step 2's
+relational-only diagnostic). Early-stopped at epoch 30 (best: epoch 20,
+avg 9.16s/epoch — essentially the same speed as `base_fusion`, since the
+shift head is a single small linear layer).
+
+| metric | raw | tau_eval=0.25 |
+|---|---|---|
+| weighted F1 | 0.6370 | 0.6369 |
+| macro F1 | 0.4542 | **0.4707** |
+| accuracy | 0.6460 | — |
+| fear | (see per-class) | **0.268** |
+| disgust | (see per-class) | 0.208 |
+| all 7 nonzero | yes | yes |
+| test shift F1 (aux, not selected on) | — | 0.6370-ish range during training, not separately reported at test in this diagnostic |
+
+Notably stronger than `base_fusion` (raw macro F1 0.4359, adjusted macro
+F1 0.4601) and the relational-only diagnostic (0.4348 / 0.4329) on this
+single seed — fear F1 in particular (0.268 adjusted) is the best of any
+Phase N4 diagnostic so far, consistent with `docs/SHIFT_LABEL_STATS.md`'s
+finding that fear has the single highest shift rate (0.84-0.92 across
+splits) of any class. Not dispositive on its own (single seed, single
+component), but a promising early signal for Step 6's full ablation.
+
+**Step 3 complete.** Next: Step 4, temporal attention.
+
+---
+
+## STEP 4 — Temporal attention pooling
+
+`src/rapport/models/temporal_attention.py`'s `TemporalAttentionPool`
+implements spec section C: a learnable aggregation token, one block of
+4-head self-attention, output = the aggregation token's position after
+the block.
+
+**Two implementation decisions the spec left open** (full detail in
+`docs/SPEC_RAPPORT_COMPONENTS.md`):
+1. **Mean-pool-equivalent init (C2):** a literal post-residual LayerNorm
+   can never exactly reproduce a raw masked mean (its normalization has no
+   learnable identity setting), so LayerNorm is applied to the query/key
+   path only ("QK-norm"), never to values or the residual sum. Combined
+   with zero-initializing the query projection and identity-initializing
+   the value/output projections, the block's output is EXACTLY
+   `agg_token + masked_mean(tokens)` at init (`agg_token` itself zero-init)
+   — verified to atol 1e-5, not just approximately, in
+   `tests/test_temporal_attention.py`.
+2. **Separate pool per modality (C4):** `video_temporal_pool` and
+   `audio_temporal_pool` are two independent instances, not shared
+   weights — audio (wav2vec2) and video (MViTv2) tokens come from
+   different frozen backbones with different statistics.
+
+**Data pipeline:** `MELDCachedDataset(load_av_tokens=True)` additionally
+loads the pre-pooling `video_tokens`/`audio_tokens` caches (video: fixed
+392 tokens/utterance, no inner padding needed; audio: variable length, up
+to 64, `AUDIO_TOKEN_STRIDE`/`AUDIO_TOKEN_MAX_LEN`-capped).
+`collate_dialogues` gained `_pad_token_sequences` (mirrors the existing
+`_pad_waveforms`/`_pad_token_ids` two-level padding pattern) producing
+`[B, L, T_max, 768]` + a `[B, L, T_max]` boolean mask per modality.
+
+**A real correctness hazard found and handled, not just noted:**
+batch-padding dialogue positions (from a shorter dialogue sharing a batch
+with a longer one) have an all-False token mask — feeding that straight
+into the pool's softmax divides 0/0 (NaN), which would then contaminate
+every OTHER row's gradient for the pool's shared parameters once summed
+during backward. `RapportModel._temporal_pool_av` filters to only the
+`dialogue_mask`-real positions before pooling and scatters the result
+back into an all-zero tensor via `index_copy` (differentiable, unlike
+in-place indexed assignment) — covered by a dedicated test
+(`test_temporal_handles_batch_padding_without_nan`) that deliberately
+constructs a mixed-length batch and checks both the forward output and
+every parameter's gradient are finite.
+
+### Test coverage (C3 + integration)
+
+- Module-level (`tests/test_temporal_attention.py`, 6 tests): output
+  matches the masked mean at init to atol 1e-5, with and without padding;
+  padded positions provably don't influence the output (corrupting them
+  with huge noise changes nothing), both at init and after training (to
+  confirm the masking discipline isn't an init-only accident); gradient
+  flows to every parameter; the module is trainable (fits a random
+  regression target).
+- Model-level (`tests/test_rapport_model_temporal.py`, 4 tests): finite
+  forward; works combined with `relational=True` and `shift=True`
+  simultaneously; the batch-padding/NaN hazard above; gradient flow to
+  the temporal-pool parameters specifically.
+
+All 10 pass, plus every earlier test still passes (74 total across the
+whole Phase N4 + Phase T test suite).
+
+### Diagnostic run — temporal-only, seed 42 (not a final ablation-matrix cell)
+
+`docs/train_temporal_only_seed42_diagnostic.log`. ~17s/epoch (slower than
+`base_fusion`'s ~8s — loading and attending over token sequences, mostly
+audio's variable-length padding, costs more than reading one pre-pooled
+768-d vector per utterance). Early-stopped at epoch 16 (best: epoch 6).
+
+| metric | raw | tau_eval=0.25 |
+|---|---|---|
+| weighted F1 | 0.6328 | 0.6379 |
+| macro F1 | 0.4150 | 0.4455 |
+| accuracy | 0.6567 | — |
+| all 7 nonzero | yes | yes |
+
+Slightly weaker than `base_fusion` alone on this single seed (raw macro F1
+0.4150 vs. 0.4359) — not concerning: video/audio have consistently been
+the weakest signal sources throughout this project (`docs/DIAGNOSIS.md`'s
+linear probes: text >> audio > video), so a better pooling mechanism for
+those two modalities alone, with nothing else changed, isn't guaranteed to
+move the needle much on a single seed. This diagnostic's purpose was
+confirming the code path (including the padding/NaN hazard fix) is
+correct end-to-end, which it is.
+
+**Step 4 complete.** All four spec components (base fusion, relational
+memory, shift objective, temporal attention) are implemented and
+unit-tested (74 tests pass across the whole `tests/` suite, including
+`tests/test_rapport_model*.py`, `tests/test_relational_memory.py`,
+`tests/test_shift_labels.py`, `tests/test_temporal_attention.py`, and
+every earlier Phase T test), and each new component individually verified
+to train end-to-end via a real diagnostic run. Next: Step 5, the full
+ablation matrix.

@@ -100,18 +100,32 @@ class MELDCachedDataset(_MELDDialogueDatasetBase):
 
     FEATURE_DIM = 768
 
-    def __init__(self, index_path: str | Path, cache_dir: str | Path, text_cache_subdir: str = "text"):
+    def __init__(
+        self,
+        index_path: str | Path,
+        cache_dir: str | Path,
+        text_cache_subdir: str = "text",
+        load_av_tokens: bool = False,
+    ):
         """`text_cache_subdir` selects which cached text representation to load
         for the "text" modality -- "text" (default) is the frozen, non-contextual
         RoBERTa cache used by `speaker_only`; "text_ctx" is Phase T's frozen
         contextual encoder cache (docs/PHASE_N4.md Step 0), used by the RAPPORT
         fusion configs (base_fusion, full, minus_*). Video/audio always come
         from their own frozen caches regardless of this setting.
+
+        `load_av_tokens=True` additionally loads the pre-pooling A/V token
+        sequences (cache_dir/{video,audio}_tokens/...) for Phase N4's
+        temporal-attention config (docs/SPEC_RAPPORT_COMPONENTS.md section
+        C) -- video tokens are fixed-length (392, no padding needed within
+        an utterance); audio tokens are variable-length and padded per
+        utterance in `collate_dialogues`.
         """
         super().__init__(index_path)
         self.cache_dir = Path(cache_dir)
         self.split = Path(index_path).stem
         self.text_cache_subdir = text_cache_subdir
+        self.load_av_tokens = load_av_tokens
 
     def _load_feature(self, modality: str, dialogue_id: int, utterance_id: int) -> torch.Tensor:
         path = self.cache_dir / modality / self.split / f"dia{dialogue_id}_utt{utterance_id}.pt"
@@ -125,13 +139,28 @@ class MELDCachedDataset(_MELDDialogueDatasetBase):
             raise ValueError(f"expected shape ({self.FEATURE_DIM},), got {tuple(feat.shape)} at {path}")
         return feat
 
+    def _load_tokens(self, modality: str, dialogue_id: int, utterance_id: int) -> torch.Tensor:
+        """Loads a variable-length [T, FEATURE_DIM] pre-pooling token sequence
+        (no shape assertion beyond the feature dim -- T varies by utterance)."""
+        path = self.cache_dir / modality / self.split / f"dia{dialogue_id}_utt{utterance_id}.pt"
+        if not path.exists():
+            raise FileNotFoundError(f"Missing cached {modality} tokens at {path}.")
+        tokens = torch.load(path, weights_only=True)
+        if tokens.shape[-1] != self.FEATURE_DIM:
+            raise ValueError(f"expected last dim {self.FEATURE_DIM}, got {tuple(tokens.shape)} at {path}")
+        return tokens
+
     def __getitem__(self, idx: int) -> dict:
         dialogue = self.dialogues[idx]
         video_feat, audio_feat, text_feat = [], [], []
+        video_tokens, audio_tokens = [], []
         for row in dialogue.itertuples(index=False):
             video_feat.append(self._load_feature("video", row.dialogue_id, row.utterance_id))
             audio_feat.append(self._load_feature("audio", row.dialogue_id, row.utterance_id))
             text_feat.append(self._load_feature(self.text_cache_subdir, row.dialogue_id, row.utterance_id))
+            if self.load_av_tokens:
+                video_tokens.append(self._load_tokens("video_tokens", row.dialogue_id, row.utterance_id))
+                audio_tokens.append(self._load_tokens("audio_tokens", row.dialogue_id, row.utterance_id))
 
         item = {
             "dialogue_id": int(dialogue["dialogue_id"].iloc[0]),
@@ -141,6 +170,9 @@ class MELDCachedDataset(_MELDDialogueDatasetBase):
             "audio_feat": torch.stack(audio_feat),
             "text_feat": torch.stack(text_feat),
         }
+        if self.load_av_tokens:
+            item["video_tokens"] = video_tokens  # list[Tensor[392, 768]], length L (fixed length, still a list for collate uniformity)
+            item["audio_tokens"] = audio_tokens  # list[Tensor[T_i, 768]], length L, variable T_i
 
         if "shift_label" in dialogue.columns:
             item["shift_label"] = torch.tensor(dialogue["shift_label"].tolist(), dtype=torch.float32)

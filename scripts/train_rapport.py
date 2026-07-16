@@ -37,6 +37,7 @@ from torch.utils.data import DataLoader
 
 from rapport.data import MELDCachedDataset, collate_dialogues
 from rapport.data.constants import EMOTION_LABELS
+from rapport.data.shift_labels import compute_shift_pos_weight
 from rapport.eval.rank_diagnostics import posthoc_adjustment_sweep
 from rapport.eval.report import evaluate_and_report
 from rapport.models.rapport_model import RapportModel
@@ -60,13 +61,20 @@ GRAD_CLIP = 1.0
 # focal+tempered-alpha), selection on val MACRO F1 (not weighted F1).
 FROZEN_POSTHOC_TAU = 0.25
 
+# Spec B4: L = L_CE_emotion + SHIFT_LOSS_WEIGHT * L_shift (locked).
+SHIFT_LOSS_WEIGHT = 0.5
 
-def build_dataloaders(batch_size: int = BATCH_SIZE, num_workers: int = NUM_WORKERS) -> dict[str, DataLoader]:
+
+def build_dataloaders(
+    temporal: bool = False, batch_size: int = BATCH_SIZE, num_workers: int = NUM_WORKERS
+) -> dict[str, DataLoader]:
     processed_dir = PROJECT_ROOT / "data" / "meld" / "processed"
     cache_dir = PROJECT_ROOT / "data" / "meld" / "cache"
     loaders = {}
     for split in ("train", "dev", "test"):
-        dataset = MELDCachedDataset(processed_dir / f"{split}.parquet", cache_dir, text_cache_subdir="text_ctx")
+        dataset = MELDCachedDataset(
+            processed_dir / f"{split}.parquet", cache_dir, text_cache_subdir="text_ctx", load_av_tokens=temporal
+        )
         loaders[split] = DataLoader(
             dataset,
             batch_size=batch_size,
@@ -81,18 +89,38 @@ def _move_batch(batch: dict, device: torch.device) -> dict:
     return {k: (v.to(device) if isinstance(v, torch.Tensor) else v) for k, v in batch.items()}
 
 
+def _model_forward(model: RapportModel, batch: dict):
+    if model.temporal:
+        return model(
+            batch["video_feat"], batch["audio_feat"], batch["text_feat"], batch["speaker_ids"], batch["dialogue_mask"],
+            video_tokens=batch["video_tokens"], video_tokens_mask=batch["video_tokens_mask"],
+            audio_tokens=batch["audio_tokens"], audio_tokens_mask=batch["audio_tokens_mask"],
+        )
+    return model(
+        batch["video_feat"], batch["audio_feat"], batch["text_feat"], batch["speaker_ids"], batch["dialogue_mask"]
+    )
+
+
 @torch.no_grad()
 def evaluate_split(model: RapportModel, loader: DataLoader, device: torch.device):
+    """Emotion metrics are always computed. Shift metrics (F1) are computed
+    too when the model has a shift head, but ONLY as an auxiliary logged
+    metric (spec B5) -- never returned as part of the selection signal.
+    """
     model.eval()
     all_logits, all_labels = [], []
+    all_shift_logits, all_shift_labels = [], []
     for batch in loader:
         batch = _move_batch(batch, device)
-        logits = model(
-            batch["video_feat"], batch["audio_feat"], batch["text_feat"], batch["speaker_ids"], batch["dialogue_mask"]
-        )
+        logits, shift_logits = _model_forward(model, batch)
         mask = batch["dialogue_mask"]
         all_logits.append(logits[mask].cpu())
         all_labels.append(batch["labels"][mask].cpu())
+
+        if model.shift:
+            shift_valid = mask & (batch["shift_mask"] > 0.5)
+            all_shift_logits.append(shift_logits[shift_valid].cpu())
+            all_shift_labels.append(batch["shift_label"][shift_valid].cpu())
 
     logits = torch.cat(all_logits)
     labels = torch.cat(all_labels)
@@ -100,7 +128,15 @@ def evaluate_split(model: RapportModel, loader: DataLoader, device: torch.device
     labels_list = labels.tolist()
     weighted_f1 = f1_score(labels_list, preds, average="weighted", zero_division=0)
     macro_f1 = f1_score(labels_list, preds, average="macro", zero_division=0)
-    return weighted_f1, macro_f1, labels_list, preds, logits, labels
+
+    shift_f1 = None
+    if model.shift:
+        shift_logits_all = torch.cat(all_shift_logits)
+        shift_labels_all = torch.cat(all_shift_labels)
+        shift_preds = (shift_logits_all > 0).long().tolist()
+        shift_f1 = f1_score(shift_labels_all.long().tolist(), shift_preds, average="binary", zero_division=0)
+
+    return weighted_f1, macro_f1, labels_list, preds, logits, labels, shift_f1
 
 
 def train(seed: int, relational: bool, shift: bool, temporal: bool, run_dir: Path) -> dict:
@@ -108,7 +144,7 @@ def train(seed: int, relational: bool, shift: bool, temporal: bool, run_dir: Pat
     set_seed(seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    loaders = build_dataloaders()
+    loaders = build_dataloaders(temporal=temporal)
     model = RapportModel(
         num_classes=NUM_CLASSES, relational=relational, shift=shift, temporal=temporal, dropout=DROPOUT
     ).to(device)
@@ -116,6 +152,14 @@ def train(seed: int, relational: bool, shift: bool, temporal: bool, run_dir: Pat
     optimizer = AdamW(model.parameters(), lr=LR)
     scheduler = CosineAnnealingLR(optimizer, T_max=MAX_EPOCHS)
     criterion = nn.CrossEntropyLoss(ignore_index=-1)
+
+    shift_criterion = None
+    if shift:
+        # spec B3: pos_weight from the TRAIN split's shift rate.
+        train_df = loaders["train"].dataset.index_df
+        pos_weight = compute_shift_pos_weight(train_df["shift_label"], train_df["shift_mask"])
+        shift_criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor(pos_weight, device=device))
+        print(f"[trainer] shift pos_weight={pos_weight:.4f}", flush=True)
 
     log_priors = torch.log(compute_class_priors(loaders["train"].dataset.index_df["label"], NUM_CLASSES)).to(device)
 
@@ -137,11 +181,16 @@ def train(seed: int, relational: bool, shift: bool, temporal: bool, run_dir: Pat
             batch = _move_batch(batch, device)
             optimizer.zero_grad()
             with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=device.type == "cuda"):
-                logits = model(
-                    batch["video_feat"], batch["audio_feat"], batch["text_feat"],
-                    batch["speaker_ids"], batch["dialogue_mask"],
-                )
+                logits, shift_logits = _model_forward(model, batch)
                 loss = criterion(logits.reshape(-1, NUM_CLASSES), batch["labels"].reshape(-1))
+                if shift:
+                    # spec B4: L = L_CE_emotion + 0.5 * L_shift, masked positions
+                    # (batch padding AND each speaker's first-in-dialogue
+                    # utterance) contribute exactly zero via boolean indexing.
+                    shift_valid = batch["dialogue_mask"] & (batch["shift_mask"] > 0.5)
+                    if shift_valid.any():
+                        shift_loss = shift_criterion(shift_logits[shift_valid], batch["shift_label"][shift_valid])
+                        loss = loss + SHIFT_LOSS_WEIGHT * shift_loss
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=GRAD_CLIP)
             optimizer.step()
@@ -152,14 +201,17 @@ def train(seed: int, relational: bool, shift: bool, temporal: bool, run_dir: Pat
         epoch_time = time.time() - start
         epoch_times.append(epoch_time)
 
-        val_weighted_f1, val_macro_f1, val_labels, val_preds, _, _ = evaluate_split(model, loaders["dev"], device)
+        val_weighted_f1, val_macro_f1, val_labels, val_preds, _, _, val_shift_f1 = evaluate_split(
+            model, loaders["dev"], device
+        )
         per_class_f1 = f1_score(val_labels, val_preds, average=None, labels=list(range(NUM_CLASSES)), zero_division=0)
         train_loss = total_loss / max(n_batches, 1)
         per_class_str = {label: round(float(f1), 3) for label, f1 in zip(EMOTION_LABELS, per_class_f1)}
+        shift_f1_str = f" val_shift_f1={val_shift_f1:.4f}" if shift else ""
 
         print(
             f"[epoch {epoch:03d}] loss={train_loss:.4f} val_weighted_f1={val_weighted_f1:.4f} "
-            f"val_macro_f1={val_macro_f1:.4f} time={epoch_time:.1f}s per_class_f1={per_class_str}",
+            f"val_macro_f1={val_macro_f1:.4f}{shift_f1_str} time={epoch_time:.1f}s per_class_f1={per_class_str}",
             flush=True,
         )
         history.append(
@@ -168,6 +220,7 @@ def train(seed: int, relational: bool, shift: bool, temporal: bool, run_dir: Pat
                 "train_loss": train_loss,
                 "val_weighted_f1": val_weighted_f1,
                 "val_macro_f1": val_macro_f1,
+                "val_shift_f1": val_shift_f1,
                 "val_per_class_f1": per_class_str,
                 "epoch_time_sec": epoch_time,
             }
@@ -187,7 +240,7 @@ def train(seed: int, relational: bool, shift: bool, temporal: bool, run_dir: Pat
 
     checkpoint = torch.load(ckpt_path, map_location=device, weights_only=True)
     model.load_state_dict(checkpoint["model_state_dict"])
-    test_weighted_f1, test_macro_f1, test_labels, test_preds, test_logits, test_labels_t = evaluate_split(
+    test_weighted_f1, test_macro_f1, test_labels, test_preds, test_logits, test_labels_t, test_shift_f1 = evaluate_split(
         model, loaders["test"], device
     )
     test_accuracy = sum(int(p == l) for p, l in zip(test_preds, test_labels)) / len(test_labels)
@@ -208,6 +261,7 @@ def train(seed: int, relational: bool, shift: bool, temporal: bool, run_dir: Pat
             "temporal": temporal,
             "test_weighted_f1": test_weighted_f1,
             "test_macro_f1": test_macro_f1,
+            "test_shift_f1": test_shift_f1,
             "test_accuracy": test_accuracy,
             "test_per_class_f1": {l: float(f1) for l, f1 in zip(EMOTION_LABELS, per_class_test_f1)},
             "test_posthoc_adjusted_result": posthoc_result,

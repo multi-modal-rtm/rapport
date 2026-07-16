@@ -12,8 +12,11 @@ Built incrementally across Phase N4's steps (docs/PHASE_N4.md):
     relational=False reproduces Step 1's base_fusion path bit-for-bit (spec
     A7) -- the non-relational branch below is never touched by this step.
   Step 3 (shift=True): adds an emotion-shift auxiliary head (spec B).
-  Step 4 (temporal=True): adds temporal attention pooling over the cached
-    A/V token sequences in place of mean pooling (spec C).
+  Step 4 (temporal=True): adds temporal attention pooling
+    (rapport.models.temporal_attention.TemporalAttentionPool) over the
+    cached A/V token sequences in place of mean pooling (spec C). Text is
+    exempt (already contextual via Phase T). One pool per A/V stream, not
+    shared weights (docs/SPEC_RAPPORT_COMPONENTS.md Implementation decisions).
 
 `base_fusion` = relational=False, shift=False, temporal=False (the
 ablation matrix's internal baseline, per PHASE N4 Step 1).
@@ -26,6 +29,7 @@ import torch.nn as nn
 
 from rapport.models.relational_memory import RelationalEdgeMemory
 from rapport.models.social_gnn import GraphAttentionLayer
+from rapport.models.temporal_attention import TemporalAttentionPool
 
 
 class RapportModel(nn.Module):
@@ -44,11 +48,6 @@ class RapportModel(nn.Module):
         dropout: float = 0.5,
     ):
         super().__init__()
-        if shift:
-            raise NotImplementedError("shift=True lands in Phase N4 Step 3 (docs/PHASE_N4.md)")
-        if temporal:
-            raise NotImplementedError("temporal=True lands in Phase N4 Step 4 (docs/PHASE_N4.md)")
-
         self.relational = relational
         self.shift = shift
         self.temporal = temporal
@@ -78,27 +77,99 @@ class RapportModel(nn.Module):
             self.gru_cell = nn.GRUCell(self.FUSION_DIM, self.HIDDEN_DIM)
             self.classifier = nn.Linear(self.HIDDEN_DIM, num_classes)
 
+        if shift:
+            # B3: single-logit linear head on the RAW node state h_{s,t} --
+            # not the edge-augmented [h_s || mean_j e_sj] readout the
+            # emotion classifier sees, in either path.
+            self.shift_head = nn.Linear(self.HIDDEN_DIM, 1)
+
+        if temporal:
+            # C1/C4: text_ctx is exempt (its pooling is already contextual --
+            # docs/PHASE_N4.md Step 0); separate pool per A/V stream (spec
+            # doesn't say to share weights across modalities with different
+            # backbone statistics, so this is the more conservative default
+            # -- see docs/SPEC_RAPPORT_COMPONENTS.md's Implementation decisions).
+            self.video_temporal_pool = TemporalAttentionPool(dim=self.FEATURE_DIM)
+            self.audio_temporal_pool = TemporalAttentionPool(dim=self.FEATURE_DIM)
+
+    def _temporal_pool_av(
+        self,
+        dialogue_mask: torch.Tensor,
+        video_tokens: torch.Tensor,
+        video_tokens_mask: torch.Tensor,
+        audio_tokens: torch.Tensor,
+        audio_tokens_mask: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Pools the raw A/V token sequences into [B, L, 768] vectors via
+        TemporalAttentionPool, one utterance at a time (no recurrence needed
+        for pooling itself). Only computed for positions dialogue_mask says
+        are real -- a batch-padding position's token mask is all-False (no
+        real tokens were ever written there by collate_dialogues), which
+        would make the pool's softmax divide 0/0 (NaN) if fed in directly,
+        so those positions are filtered out before pooling and the result
+        is scattered back into an all-zero [B, L, 768] tensor (never read
+        downstream anyway, since dialogue_mask excludes them everywhere else).
+        """
+        batch_size, max_len = dialogue_mask.shape
+        flat_mask = dialogue_mask.reshape(-1)
+        valid_idx = flat_mask.nonzero(as_tuple=True)[0]
+
+        video_tokens_flat = video_tokens.reshape(batch_size * max_len, *video_tokens.shape[2:])[valid_idx]
+        video_tokens_mask_flat = video_tokens_mask.reshape(batch_size * max_len, video_tokens_mask.shape[2])[valid_idx]
+        pooled_video_valid = self.video_temporal_pool(video_tokens_flat, video_tokens_mask_flat)
+
+        audio_tokens_flat = audio_tokens.reshape(batch_size * max_len, *audio_tokens.shape[2:])[valid_idx]
+        audio_tokens_mask_flat = audio_tokens_mask.reshape(batch_size * max_len, audio_tokens_mask.shape[2])[valid_idx]
+        pooled_audio_valid = self.audio_temporal_pool(audio_tokens_flat, audio_tokens_mask_flat)
+
+        pooled_video = video_tokens.new_zeros(batch_size * max_len, self.FEATURE_DIM).index_copy(
+            0, valid_idx, pooled_video_valid
+        )
+        pooled_audio = audio_tokens.new_zeros(batch_size * max_len, self.FEATURE_DIM).index_copy(
+            0, valid_idx, pooled_audio_valid
+        )
+        return pooled_video.reshape(batch_size, max_len, self.FEATURE_DIM), pooled_audio.reshape(
+            batch_size, max_len, self.FEATURE_DIM
+        )
+
     def forward(
         self,
-        video_feat: torch.Tensor,  # [B, L, 768]
-        audio_feat: torch.Tensor,  # [B, L, 768]
-        text_feat: torch.Tensor,  # [B, L, 768] -- text_ctx (Phase T contextual cache)
+        video_feat: torch.Tensor,  # [B, L, 768] -- ignored if temporal=True (video_tokens used instead)
+        audio_feat: torch.Tensor,  # [B, L, 768] -- ignored if temporal=True (audio_tokens used instead)
+        text_feat: torch.Tensor,  # [B, L, 768] -- text_ctx (Phase T contextual cache); always used as-is
         speaker_ids: torch.Tensor,  # [B, L]
         dialogue_mask: torch.Tensor,  # [B, L] bool
-    ) -> torch.Tensor:
+        video_tokens: torch.Tensor | None = None,  # [B, L, 392, 768] -- required if temporal=True
+        video_tokens_mask: torch.Tensor | None = None,  # [B, L, 392] bool
+        audio_tokens: torch.Tensor | None = None,  # [B, L, T_max, 768] -- required if temporal=True
+        audio_tokens_mask: torch.Tensor | None = None,  # [B, L, T_max] bool
+    ) -> tuple[torch.Tensor, torch.Tensor | None]:
+        """Returns (emotion_logits [B,L,num_classes], shift_logits [B,L] or
+        None if shift=False)."""
+        if self.temporal:
+            assert video_tokens is not None and audio_tokens is not None, (
+                "temporal=True requires video_tokens/audio_tokens (load_av_tokens=True on the dataset)"
+            )
+            video_feat, audio_feat = self._temporal_pool_av(
+                dialogue_mask, video_tokens, video_tokens_mask, audio_tokens, audio_tokens_mask
+            )
+
         if self.relational:
             return self._forward_relational(video_feat, audio_feat, text_feat, speaker_ids, dialogue_mask)
         return self._forward_base(video_feat, audio_feat, text_feat, speaker_ids, dialogue_mask)
 
-    def _forward_base(self, video_feat, audio_feat, text_feat, speaker_ids, dialogue_mask) -> torch.Tensor:
-        """Step 1 path, UNCHANGED since it was introduced -- spec A7 requires
-        relational=False to reproduce this bit-for-bit, so nothing here may
-        be edited by a later step without re-verifying that guarantee.
+    def _forward_base(self, video_feat, audio_feat, text_feat, speaker_ids, dialogue_mask):
+        """Step 1 path, UNCHANGED since it was introduced (aside from the
+        additive, opt-in shift head below) -- spec A7 requires
+        relational=False to reproduce this bit-for-bit, so the emotion-logit
+        computation here may not be edited by a later step without
+        re-verifying that guarantee.
         """
         batch_size, max_len, _ = video_feat.shape
         fused = self.fusion(torch.cat([text_feat, audio_feat, video_feat], dim=-1))  # [B, L, FUSION_DIM]
 
         logits = fused.new_zeros(batch_size, max_len, self.classifier.out_features)
+        shift_logits = fused.new_zeros(batch_size, max_len) if self.shift else None
         speaker_hidden: list[dict[int, torch.Tensor]] = [{} for _ in range(batch_size)]
 
         for t in range(max_len):
@@ -126,14 +197,18 @@ class RapportModel(nn.Module):
             new_hidden_batch = self.gru_cell(fused_batch, prev_hidden_batch)  # [n_active, HIDDEN_DIM]
 
             step_logits = self.classifier(self.dropout(new_hidden_batch))
+            if self.shift:
+                step_shift_logits = self.shift_head(new_hidden_batch).squeeze(-1)
             for i, b in enumerate(active):
                 spk = int(speaker_ids[b, t].item())
                 speaker_hidden[b][spk] = new_hidden_batch[i]
                 logits[b, t] = step_logits[i]
+                if self.shift:
+                    shift_logits[b, t] = step_shift_logits[i]
 
-        return logits
+        return logits, shift_logits
 
-    def _forward_relational(self, video_feat, audio_feat, text_feat, speaker_ids, dialogue_mask) -> torch.Tensor:
+    def _forward_relational(self, video_feat, audio_feat, text_feat, speaker_ids, dialogue_mask):
         """Step 2 path (docs/SPEC_RAPPORT_COMPONENTS.md section A). Edge
         states are stored per dialogue in a dict keyed by pair_index over
         LOCAL (per-dialogue, first-appearance-order) speaker indices --
@@ -144,6 +219,7 @@ class RapportModel(nn.Module):
         fused = self.fusion(torch.cat([text_feat, audio_feat, video_feat], dim=-1))  # [B, L, FUSION_DIM]
 
         logits = fused.new_zeros(batch_size, max_len, self.classifier.out_features)
+        shift_logits = fused.new_zeros(batch_size, max_len) if self.shift else None
         speaker_hidden: list[dict[int, torch.Tensor]] = [{} for _ in range(batch_size)]
         edge_hidden: list[dict[int, torch.Tensor]] = [{} for _ in range(batch_size)]
         local_ids: list[dict[int, int]] = [{} for _ in range(batch_size)]
@@ -199,7 +275,13 @@ class RapportModel(nn.Module):
 
             classifier_input_batch = torch.stack(classifier_input_list)
             step_logits = self.classifier(self.dropout(classifier_input_batch))
+            if self.shift:
+                # B3: shift head sees the RAW node state (new_hidden_batch),
+                # not the edge-augmented classifier_input_batch.
+                step_shift_logits = self.shift_head(new_hidden_batch).squeeze(-1)
             for i, b in enumerate(active):
                 logits[b, t] = step_logits[i]
+                if self.shift:
+                    shift_logits[b, t] = step_shift_logits[i]
 
-        return logits
+        return logits, shift_logits

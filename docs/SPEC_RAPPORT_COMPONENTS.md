@@ -167,3 +167,97 @@ option that satisfies A7 (relational=False's classifier must be bit-for-bit
 identical to Step 1's, which only ever saw a `HIDDEN_DIM`-wide input) with
 zero risk of an accidental shape/projection interaction between the two
 paths.
+
+### B. Shift head's return convention
+
+**Undecided:** the spec doesn't say how the shift logit should be exposed
+from the model's forward pass alongside the emotion logits.
+
+**Chosen:** `RapportModel.forward` now always returns a 2-tuple
+`(emotion_logits, shift_logits)`, where `shift_logits` is `None` whenever
+`shift=False`. This is a one-time, additive change to the return
+convention (made once, at the point `shift` was implemented, rather than
+threading an optional third return value through every future step) --
+every caller (tests, `scripts/train_rapport.py`) unpacks the tuple
+regardless of whether `shift` is enabled for that particular model
+instance, so there's exactly one calling convention to remember.
+
+### B3. Shift head input across the relational/non-relational split
+
+**Undecided:** whether the shift head should see the same
+possibly-edge-augmented state the emotion classifier sees, or something
+narrower.
+
+**Chosen:** exactly as spec B3 states literally -- the shift head is
+`nn.Linear(HIDDEN_DIM, 1)` applied to the RAW node state `h_{s,t}`
+(`new_hidden_batch` in the code) in BOTH the relational and non-relational
+paths, never the edge-augmented `[h_{s,t} || mean_j e_{sj,t}]` the emotion
+classifier sees when `relational=True`. This keeps the shift head's input
+dimension and semantics identical regardless of the `relational` flag,
+consistent with spec B3's specific wording ("the current speaker's updated
+state h_{s,t}", not the readout vector spec A6 defines separately for the
+emotion classifier).
+
+### C2. Mean-pool-equivalent init scheme
+
+**Undecided (explicitly, per spec: "ANY scheme passing C3 is acceptable"):**
+how to make a "residual + LayerNorm" attention block behave as a masked
+mean at init.
+
+**Chosen, and why the obvious approach doesn't work:** a literal
+post-residual LayerNorm (`LayerNorm(agg + MHA(agg, tokens))`) can NEVER
+exactly reproduce the raw masked mean for arbitrary inputs, at any point
+in training, because LayerNorm's normalization step (subtract the
+per-sample mean across features, divide by the per-sample std) has no
+learnable parameter that can turn it into an identity map -- only the
+post-normalization affine (default weight=1, bias=0) is learnable, and
+that alone can't undo the normalization itself. So instead: LayerNorm is
+applied to the QUERY/KEY path only (`qk_norm`, used to compute attention
+scores), never to the VALUE path or the final residual sum -- a "QK-norm"
+variant, a real, previously-used transformer design, not an invented
+workaround. Combined with zero-initializing the query projection (->
+attention scores are exactly 0 for every unmasked position regardless of
+what LayerNorm did to the keys, so softmax gives exactly uniform weight
+over unmasked tokens) and identity-initializing the value/output
+projections, the block's output is EXACTLY `agg_token + masked_mean(tokens)`
+at init, and `agg_token` is itself zero-init, giving exact (not
+approximate) masked-mean equivalence -- verified to atol 1e-5 for both
+padded and unpadded random inputs (`tests/test_temporal_attention.py`).
+
+One consequence, noted rather than hidden: because the query path is
+multiplied by an all-zero weight matrix at init, the gradient flowing back
+into `qk_norm`'s parameters on the very first backward pass is exactly
+zero (not None -- PyTorch still populates a defined, all-zero gradient
+tensor, which is what `tests/test_temporal_attention.py`'s
+`test_gradient_flows_to_all_parameters` checks for, matching this
+project's convention elsewhere, e.g. `tests/test_relational_memory.py`).
+This is the standard, well-understood behavior of any "zero-init" trick
+(e.g. the same GRUCell/GAT parameter-sharing tricks used elsewhere in
+Phase N4) -- the pathway "wakes up" after the first optimizer step moves
+`q_proj` away from exactly zero, not a bug.
+
+### C4. One temporal pool per modality, not shared
+
+**Undecided:** whether audio and video should share one
+`TemporalAttentionPool` instance or each get their own.
+
+**Chosen:** separate instances (`RapportModel.video_temporal_pool`,
+`.audio_temporal_pool`), not shared weights. The spec doesn't say to
+share, and audio (wav2vec2) and video (MViTv2) token sequences come from
+different frozen backbones with different statistics -- sharing a pooling
+module's weights across them would impose an assumption (that the same
+learned attention pattern transfers across modalities) the spec never
+asked for. The extra parameter cost is small (two `TemporalAttentionPool`
+instances vs. one, each dominated by four 768x768 linear layers).
+
+**Also implemented:** batch-padding dialogue positions (a shorter
+dialogue's padding, when batched alongside a longer one) have an
+all-False token mask (no real tokens were ever written there) -- feeding
+that directly into the pool's softmax would divide 0/0 (NaN), which would
+then contaminate every OTHER row's gradient for the pool's shared
+parameters once summed during backward. `RapportModel._temporal_pool_av`
+filters to only the utterance positions `dialogue_mask` marks real before
+pooling, then scatters the result back into an all-zero `[B, L, 768]`
+tensor via `index_copy` (differentiable, unlike in-place indexed
+assignment) -- covered by
+`tests/test_rapport_model_temporal.py::test_temporal_handles_batch_padding_without_nan`.

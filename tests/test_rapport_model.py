@@ -31,7 +31,7 @@ def _synthetic_batch(seed: int = 0):
 def test_base_fusion_forward_is_finite_with_av_zeroed():
     video_feat, audio_feat, text_feat, speaker_ids, dialogue_mask, labels = _synthetic_batch()
     model = RapportModel(num_classes=NUM_CLASSES)
-    logits = model(video_feat, audio_feat, text_feat, speaker_ids, dialogue_mask)
+    logits, _ = model(video_feat, audio_feat, text_feat, speaker_ids, dialogue_mask)
 
     assert logits.shape == (1, 6, NUM_CLASSES)
     assert torch.isfinite(logits).all()
@@ -49,7 +49,7 @@ def test_base_fusion_trains_on_text_ctx_alone():
     losses = []
     for _ in range(200):
         optimizer.zero_grad()
-        logits = model(video_feat, audio_feat, text_feat, speaker_ids, dialogue_mask)
+        logits, _ = model(video_feat, audio_feat, text_feat, speaker_ids, dialogue_mask)
         loss = F.cross_entropy(logits.reshape(-1, NUM_CLASSES), labels.reshape(-1))
         loss.backward()
         optimizer.step()
@@ -72,16 +72,7 @@ def test_base_fusion_bit_for_bit_reproducible_given_fixed_seed_and_weights():
     model_a.eval()
     model_b.eval()
     with torch.no_grad():
-        out_a = model_a(video_feat, audio_feat, text_feat, speaker_ids, dialogue_mask)
-        out_b = model_b(video_feat, audio_feat, text_feat, speaker_ids, dialogue_mask)
+        out_a, _ = model_a(video_feat, audio_feat, text_feat, speaker_ids, dialogue_mask)
+        out_b, _ = model_b(video_feat, audio_feat, text_feat, speaker_ids, dialogue_mask)
 
     assert torch.equal(out_a, out_b)
-
-
-def test_not_implemented_flags_raise_clearly():
-    import pytest
-
-    with pytest.raises(NotImplementedError):
-        RapportModel(num_classes=NUM_CLASSES, shift=True)
-    with pytest.raises(NotImplementedError):
-        RapportModel(num_classes=NUM_CLASSES, temporal=True)
