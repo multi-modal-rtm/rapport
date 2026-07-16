@@ -16,11 +16,18 @@ head's init and data order, not from re-encoding text.
 Usage:
     uv run python scripts/build_text_ctx_cache.py
     uv run python scripts/build_text_ctx_cache.py --k 0 --out-subdir text_ctx_k0
+    uv run python scripts/build_text_ctx_cache.py --k 0 --out-subdir text_ctx_k0 \
+        --checkpoint outputs/context_text_k0_seed42/best_model.pt
 
 `--k`/`--out-subdir` support Phase N4-R Step 2's redundancy probe: the SAME
-frozen encoder, fed context-free (k=0) input instead of the default k=8,
-written to a separate cache subdir so it never collides with the k=8 cache
-every other Phase N4 config depends on.
+frozen (k=8-trained) encoder, fed context-free (k=0) input instead of the
+default k=8, written to a separate cache subdir so it never collides with
+the k=8 cache every other Phase N4 config depends on.
+
+`--checkpoint` supports Phase N5-A's subsumption curve: a GENUINELY
+different encoder, trained end-to-end AT that k (not just fed k=0/2/4
+input at inference through the k=8-trained weights) -- pass the matching
+`scripts/train_context_text.py --k {k}` checkpoint here.
 """
 
 from __future__ import annotations
@@ -64,9 +71,9 @@ def sha256_of(path: Path) -> str:
     return h.hexdigest()
 
 
-def load_frozen_encoder(device: torch.device) -> ContextTextClassifier:
+def load_frozen_encoder(device: torch.device, checkpoint_path: Path = FROZEN_CHECKPOINT) -> ContextTextClassifier:
     model = ContextTextClassifier(num_classes=NUM_CLASSES).to(device)
-    ckpt = torch.load(FROZEN_CHECKPOINT, map_location=device, weights_only=True)
+    ckpt = torch.load(checkpoint_path, map_location=device, weights_only=True)
     model.load_state_dict(ckpt["model_state_dict"])
     model.eval()
     for p in model.parameters():
@@ -120,15 +127,22 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--k", type=int, default=DEFAULT_K)
     parser.add_argument("--out-subdir", type=str, default="text_ctx")
+    parser.add_argument(
+        "--checkpoint",
+        type=Path,
+        default=FROZEN_CHECKPOINT,
+        help="Text classifier checkpoint to freeze (default: the Phase T plain-CE seed-42 recipe). "
+        "Phase N5-A passes a k-specific retrain here.",
+    )
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"[build_text_ctx_cache] device={device} checkpoint={FROZEN_CHECKPOINT} k={args.k}")
-    checkpoint_hash = sha256_of(FROZEN_CHECKPOINT)
+    print(f"[build_text_ctx_cache] device={device} checkpoint={args.checkpoint} k={args.k}")
+    checkpoint_hash = sha256_of(args.checkpoint)
     print(f"[build_text_ctx_cache] checkpoint sha256={checkpoint_hash}")
 
     tokenizer = AutoTokenizer.from_pretrained("roberta-base")
-    model = load_frozen_encoder(device)
+    model = load_frozen_encoder(device, checkpoint_path=args.checkpoint)
 
     out_dir = PROJECT_ROOT / "data" / "meld" / "cache" / args.out_subdir
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -145,7 +159,7 @@ def main() -> None:
     manifest = {
         "cache_version": CACHE_VERSION,
         "built_at": datetime.now(timezone.utc).isoformat(),
-        "checkpoint_path": str(FROZEN_CHECKPOINT.relative_to(PROJECT_ROOT)),
+        "checkpoint_path": str(Path(args.checkpoint).resolve().relative_to(PROJECT_ROOT)),
         "checkpoint_sha256": checkpoint_hash,
         "k": args.k,
         "max_length": DEFAULT_MAX_LENGTH,

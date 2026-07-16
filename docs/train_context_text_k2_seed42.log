@@ -1,0 +1,42 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/197 [00:00<?, ?it/s]Loading weights: 100%|██████████| 197/197 [00:00<00:00, 8609.48it/s]
+[transformers] [1mRobertaModel LOAD REPORT[0m from: roberta-base
+Key                       | Status     |  | 
+--------------------------+------------+--+-
+lm_head.layer_norm.weight | UNEXPECTED |  | 
+lm_head.layer_norm.bias   | UNEXPECTED |  | 
+lm_head.dense.weight      | UNEXPECTED |  | 
+lm_head.dense.bias        | UNEXPECTED |  | 
+lm_head.bias              | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+/home/devops/socialarcnet-v2/.venv/lib/python3.11/site-packages/torch/autograd/graph.py:869: UserWarning: Memory Efficient attention defaults to a non-deterministic algorithm. To explicitly enable determinism call torch.use_deterministic_algorithms(True, warn_only=False). (Triggered internally at /pytorch/aten/src/ATen/native/transformers/cuda/attention_backward.cu:900.)
+  return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+[epoch 000] loss=1.6308 val_weighted_f1=0.4658 val_macro_f1=0.2697 time=11.2s lr=2.00e-04
+    raw       per_class_f1={'neutral': 0.727, 'joy': 0.455, 'sadness': 0.132, 'anger': 0.126, 'surprise': 0.448, 'fear': 0.0, 'disgust': 0.0}
+    tau=1 adj per_class_f1={'neutral': 0.686, 'joy': 0.479, 'sadness': 0.312, 'anger': 0.202, 'surprise': 0.442, 'fear': 0.048, 'disgust': 0.059} (adj_weighted_f1=0.4827 adj_macro_f1=0.3183)
+[epoch 001] loss=1.1531 val_weighted_f1=0.5583 val_macro_f1=0.3619 time=10.7s lr=1.78e-04
+    raw       per_class_f1={'neutral': 0.754, 'joy': 0.548, 'sadness': 0.259, 'anger': 0.376, 'surprise': 0.597, 'fear': 0.0, 'disgust': 0.0}
+    tau=1 adj per_class_f1={'neutral': 0.717, 'joy': 0.545, 'sadness': 0.386, 'anger': 0.408, 'surprise': 0.55, 'fear': 0.189, 'disgust': 0.105} (adj_weighted_f1=0.5621 adj_macro_f1=0.4144)
+[epoch 002] loss=1.0756 val_weighted_f1=0.5872 val_macro_f1=0.4047 time=11.2s lr=1.56e-04
+    raw       per_class_f1={'neutral': 0.759, 'joy': 0.569, 'sadness': 0.359, 'anger': 0.435, 'surprise': 0.624, 'fear': 0.0, 'disgust': 0.087}
+    tau=1 adj per_class_f1={'neutral': 0.656, 'joy': 0.548, 'sadness': 0.423, 'anger': 0.407, 'surprise': 0.575, 'fear': 0.256, 'disgust': 0.159} (adj_weighted_f1=0.5471 adj_macro_f1=0.4322)
+[epoch 003] loss=1.0271 val_weighted_f1=0.5792 val_macro_f1=0.4061 time=10.2s lr=1.33e-04
+    raw       per_class_f1={'neutral': 0.755, 'joy': 0.571, 'sadness': 0.353, 'anger': 0.422, 'surprise': 0.582, 'fear': 0.0, 'disgust': 0.16}
+    tau=1 adj per_class_f1={'neutral': 0.634, 'joy': 0.557, 'sadness': 0.396, 'anger': 0.427, 'surprise': 0.56, 'fear': 0.224, 'disgust': 0.2} (adj_weighted_f1=0.5367 adj_macro_f1=0.4283)
+[epoch 004] loss=1.0035 val_weighted_f1=0.5980 val_macro_f1=0.4479 time=9.9s lr=1.11e-04
+    raw       per_class_f1={'neutral': 0.767, 'joy': 0.562, 'sadness': 0.394, 'anger': 0.435, 'surprise': 0.604, 'fear': 0.115, 'disgust': 0.258}
+    tau=1 adj per_class_f1={'neutral': 0.578, 'joy': 0.503, 'sadness': 0.409, 'anger': 0.387, 'surprise': 0.58, 'fear': 0.221, 'disgust': 0.196} (adj_weighted_f1=0.5032 adj_macro_f1=0.4105)
+[epoch 005] loss=0.9767 val_weighted_f1=0.5831 val_macro_f1=0.4259 time=10.2s lr=8.89e-05
+    raw       per_class_f1={'neutral': 0.759, 'joy': 0.563, 'sadness': 0.392, 'anger': 0.342, 'surprise': 0.629, 'fear': 0.082, 'disgust': 0.214}
+    tau=1 adj per_class_f1={'neutral': 0.693, 'joy': 0.567, 'sadness': 0.452, 'anger': 0.356, 'surprise': 0.598, 'fear': 0.25, 'disgust': 0.193} (adj_weighted_f1=0.5649 adj_macro_f1=0.4441)
+[epoch 006] loss=0.9609 val_weighted_f1=0.5907 val_macro_f1=0.4383 time=10.3s lr=6.67e-05
+    raw       per_class_f1={'neutral': 0.765, 'joy': 0.577, 'sadness': 0.354, 'anger': 0.379, 'surprise': 0.63, 'fear': 0.113, 'disgust': 0.25}
+    tau=1 adj per_class_f1={'neutral': 0.689, 'joy': 0.57, 'sadness': 0.419, 'anger': 0.387, 'surprise': 0.614, 'fear': 0.238, 'disgust': 0.209} (adj_weighted_f1=0.5664 adj_macro_f1=0.4463)
+[epoch 007] loss=0.9468 val_weighted_f1=0.5843 val_macro_f1=0.4312 time=9.8s lr=4.44e-05
+    raw       per_class_f1={'neutral': 0.761, 'joy': 0.563, 'sadness': 0.321, 'anger': 0.379, 'surprise': 0.625, 'fear': 0.182, 'disgust': 0.188}
+    tau=1 adj per_class_f1={'neutral': 0.705, 'joy': 0.569, 'sadness': 0.413, 'anger': 0.353, 'surprise': 0.617, 'fear': 0.247, 'disgust': 0.247} (adj_weighted_f1=0.5694 adj_macro_f1=0.4501)
+[trainer] early stopping at epoch 7 (patience=3)
+[done] run_name=context_text_k2_seed42 loss=ce test_weighted_f1=0.6192 test_macro_f1=0.4317 test_accuracy=0.6261 all_7_classes_nonzero=True best_epoch=4 avg_epoch_time_sec=10.43
+[done] posthoc_candidate_tau_eval=0.25 test_posthoc_adjusted_result={'tau_eval': 0.25, 'weighted_f1': 0.609344563954803, 'macro_f1': 0.42623927466159134, 'per_class_f1': {'neutral': 0.7592044011849344, 'joy': 0.5732647814910026, 'sadness': 0.3968668407310705, 'anger': 0.47128129602356406, 'surprise': 0.5207823960880196, 'fear': 0.16326530612244897, 'disgust': 0.09900990099009901}, 'all_classes_nonzero': True, 'passes_amended_gate': True}
