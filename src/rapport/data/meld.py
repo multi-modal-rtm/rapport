@@ -106,6 +106,7 @@ class MELDCachedDataset(_MELDDialogueDatasetBase):
         cache_dir: str | Path,
         text_cache_subdir: str = "text",
         load_av_tokens: bool = False,
+        load_text_logits: bool = False,
     ):
         """`text_cache_subdir` selects which cached text representation to load
         for the "text" modality -- "text" (default) is the frozen, non-contextual
@@ -120,12 +121,17 @@ class MELDCachedDataset(_MELDDialogueDatasetBase):
         C) -- video tokens are fixed-length (392, no padding needed within
         an utterance); audio tokens are variable-length and padded per
         utterance in `collate_dialogues`.
+
+        `load_text_logits=True` additionally loads the frozen Phase T text
+        classifier's own 7-d logits (cache_dir/{text_cache_subdir}_logits/...)
+        for Phase N4-R's residual redesign (spec v1.1, docs/PHASE_N4R.md).
         """
         super().__init__(index_path)
         self.cache_dir = Path(cache_dir)
         self.split = Path(index_path).stem
         self.text_cache_subdir = text_cache_subdir
         self.load_av_tokens = load_av_tokens
+        self.load_text_logits = load_text_logits
 
     def _load_feature(self, modality: str, dialogue_id: int, utterance_id: int) -> torch.Tensor:
         path = self.cache_dir / modality / self.split / f"dia{dialogue_id}_utt{utterance_id}.pt"
@@ -138,6 +144,14 @@ class MELDCachedDataset(_MELDDialogueDatasetBase):
         if tuple(feat.shape) != (self.FEATURE_DIM,):
             raise ValueError(f"expected shape ({self.FEATURE_DIM},), got {tuple(feat.shape)} at {path}")
         return feat
+
+    def _load_raw(self, modality: str, dialogue_id: int, utterance_id: int) -> torch.Tensor:
+        """Loads a cached tensor with no shape assertion at all (e.g. the
+        num_classes-d text_logits cache -- see `load_text_logits`)."""
+        path = self.cache_dir / modality / self.split / f"dia{dialogue_id}_utt{utterance_id}.pt"
+        if not path.exists():
+            raise FileNotFoundError(f"Missing cached {modality} tensor at {path}.")
+        return torch.load(path, weights_only=True)
 
     def _load_tokens(self, modality: str, dialogue_id: int, utterance_id: int) -> torch.Tensor:
         """Loads a variable-length [T, FEATURE_DIM] pre-pooling token sequence
@@ -154,6 +168,8 @@ class MELDCachedDataset(_MELDDialogueDatasetBase):
         dialogue = self.dialogues[idx]
         video_feat, audio_feat, text_feat = [], [], []
         video_tokens, audio_tokens = [], []
+        text_logits = []
+        logits_subdir = f"{self.text_cache_subdir}_logits"
         for row in dialogue.itertuples(index=False):
             video_feat.append(self._load_feature("video", row.dialogue_id, row.utterance_id))
             audio_feat.append(self._load_feature("audio", row.dialogue_id, row.utterance_id))
@@ -161,6 +177,8 @@ class MELDCachedDataset(_MELDDialogueDatasetBase):
             if self.load_av_tokens:
                 video_tokens.append(self._load_tokens("video_tokens", row.dialogue_id, row.utterance_id))
                 audio_tokens.append(self._load_tokens("audio_tokens", row.dialogue_id, row.utterance_id))
+            if self.load_text_logits:
+                text_logits.append(self._load_raw(logits_subdir, row.dialogue_id, row.utterance_id))
 
         item = {
             "dialogue_id": int(dialogue["dialogue_id"].iloc[0]),
@@ -173,6 +191,8 @@ class MELDCachedDataset(_MELDDialogueDatasetBase):
         if self.load_av_tokens:
             item["video_tokens"] = video_tokens  # list[Tensor[392, 768]], length L (fixed length, still a list for collate uniformity)
             item["audio_tokens"] = audio_tokens  # list[Tensor[T_i, 768]], length L, variable T_i
+        if self.load_text_logits:
+            item["text_logits"] = torch.stack(text_logits)  # [L, num_classes]
 
         if "shift_label" in dialogue.columns:
             item["shift_label"] = torch.tensor(dialogue["shift_label"].tolist(), dtype=torch.float32)

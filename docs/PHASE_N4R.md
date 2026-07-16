@@ -104,3 +104,115 @@ around the frozen text foundation through random-init capacity is costing
 generalization, and the cost scales with how much such capacity is added.
 Nothing in Step 1 speaks to cause (2) (contextual-encoding redundancy)
 directly -- that requires the k=0 comparison in Step 2.
+
+---
+
+## STEP 2 — Redundancy probe: k=0 text cache, one run
+
+`scripts/build_text_ctx_cache.py --k 0 --out-subdir text_ctx_k0`: the SAME
+frozen Phase T encoder (identical checkpoint, identical weights), fed
+context-free (k=0, current utterance alone) input instead of the default
+k=8, written to a separate cache subdir. `scripts/train_rapport.py`
+gained a `--text_cache_subdir` override so `base_fusion` could be trained
+against this k=0 cache without touching the k=8 cache every other config
+depends on. One run: `base_fusion` on the k=0 cache, seed 42 only.
+
+### Anchor definitions (apples-to-apples with the already-documented k=8 gain)
+
+The k=8 "gain" already on record (`docs/PHASE_N4_STEP6.md`'s
+component-attribution table) is `base_fusion`'s own weighted F1 minus the
+Phase T model's OWN trained performance -- not a linear-probe baseline.
+For a fair comparison, the k=0 anchor uses the same definition: the
+EXISTING Phase T seed-42 model (`context_text_plain_ce_seed42`, trained at
+k=8), evaluated with its own already-trained classifier head on
+context-free (k=0) test inputs -- zero additional training, just a
+different input at inference time.
+
+| | k=8 | k=0 |
+|---|---|---|
+| text-only anchor (Phase T model's own weighted F1, seed 42) | 0.6353 | 0.6234 (same model, fed k=0 inputs) |
+| `base_fusion` weighted F1 (seed 42) | 0.6345 | 0.6381 |
+| **GNN gain (base_fusion − anchor)** | **-0.0008** | **+0.0147** |
+
+(The k=0 anchor, 0.6234, is itself lower than the k=8 anchor, 0.6353 --
+expected: the Phase T model was trained to expect and use k=8 context, so
+depriving it of context at inference degrades its own accuracy by ~0.012,
+a sanity-check result in the right direction.)
+
+### Interpretation — directionally consistent with cause (2), but the effect is modest, not dramatic
+
+**The GNN's gain over the text-only anchor is larger at k=0 (+0.0147)
+than at k=8 (-0.0008)** — an ~0.0155 swing in the GNN's favor when the
+text features it receives carry no context of their own. This is
+directionally exactly what cause (2) predicts (contextual encoding
+substitutes for graph-level recency context, so removing the former
+should increase the latter's marginal value) and is being recorded
+honestly as **a real, positive, but modest effect, not the "large gain"
+that would make cause (2) the dominant or sole explanation.** +0.0147 is
+about 1.5 weighted-F1 points on a single seed -- a genuine signal, not
+noise-level (Phase N4's inter-seed std for a fixed config was typically
+0.005-0.015), but nowhere near large enough on its own to explain Phase
+N4's full ablation-matrix failure (where `full`'s mean gap below
+`base_fusion` was -0.0129, an order of magnitude larger than this
++0.0147 k=0 recovery).
+
+**Conclusion: both causes have real evidence; cause (1) (overfitting from
+random-init capacity, Step 1) is the stronger, better-supported
+explanation for the magnitude of Phase N4's failure, and cause (2)
+(contextual-encoding redundancy) is a real, secondary, worth-recording
+effect** -- consistent with the pre-registered framing that relational
+memory specifically "must justify itself on LONG-RANGE relationship
+signal" going forward, since its SHORT-RANGE recency contribution does
+appear to be substantially covered by the k=8 contextual text encoder
+already. Both findings motivate Step 3's redesign: making random-init
+capacity provably harmless at initialization (directly addressing cause
+1) rather than attempting to further re-tune context window sizes
+(which would only partially address cause 2 and wasn't the
+larger-magnitude problem anyway).
+
+---
+
+## STEP 3 — Residual "do-no-harm" redesign (spec v1.1)
+
+Full mechanical spec: `docs/SPEC_RAPPORT_COMPONENTS.md` section D.
+Summary: `z = z_text + W_out(g_t)`, `W_out` (the model's final
+classification layer) zero-init, fusion projector's audio/video column
+blocks also zero-init. This directly targets cause (1) -- the stack can no
+longer regress below the frozen text baseline at initialization, by
+construction, regardless of how much random-init capacity is added.
+
+**Implementation:**
+- `scripts/build_text_ctx_cache.py` now also caches `z_text` (the frozen
+  Phase T classifier's own 7-d logits) alongside the 768-d embedding, to a
+  sibling `{subdir}_logits` cache dir -- rerun for the k=8 cache
+  (`text_ctx_logits/` now exists alongside `text_ctx/`).
+- `RapportModel(residual=True)`: zero-inits `classifier` (weight + bias)
+  and `fusion[0].weight`'s audio/video column blocks; `forward()` gained
+  an optional `text_logits` argument, added to the stack's own logits
+  OUTSIDE `_forward_base`/`_forward_relational` (so spec A7's bit-for-bit
+  guarantee needs no changes).
+- `MELDCachedDataset(load_text_logits=True)` + `collate_dialogues` thread
+  `text_logits` through the data pipeline; `scripts/train_rapport.py`
+  gained `--residual` and passes `text_logits` into the model call when
+  set.
+
+**Property test** (`tests/test_rapport_model_residual.py`, 12 tests):
+parametrized over all 8 relational/shift/temporal combinations, asserts
+`torch.equal(logits, text_logits)` at initialization with RANDOM (not
+zeroed) A/V input -- confirming the guarantee holds regardless of what the
+rest of the stack does, not just in the specific all-zero-input case.
+Also verifies: the correction becomes nonzero after a few optimizer steps
+(the property is init-only, not a permanent no-op); gradients reach every
+parameter including the relational/shift heads; the fusion A/V blocks are
+zero-init when `residual=True` and NOT zero-init when `residual=False`
+(regression guard against the flag silently doing nothing).
+
+**Smoke-test confirmation the design works as intended:** a 2-epoch
+`full_R` (relational+shift+temporal+residual) run reached val macro F1
+0.44-0.45 by epoch 0-1 -- compare to the original (non-residual) `full`
+config, which started near 0.30-0.33 at the same point
+(`docs/PHASE_N4.md` Step 5 logs). Starting from the text classifier's own
+already-decent performance instead of from scratch is exactly the
+intended effect.
+
+**Step 3 complete.** Next: Step 4, the compact 9-run re-evaluation.

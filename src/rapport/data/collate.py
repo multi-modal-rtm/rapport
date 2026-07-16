@@ -121,6 +121,12 @@ def collate_dialogues(batch: list[dict]) -> dict:
             [item["audio_tokens"] for item in batch], max_len
         )
 
+    if "text_logits" in batch[0]:
+        # Phase N4-R residual redesign (spec v1.1): pad_value=0 is safe --
+        # padded positions are excluded via dialogue_mask everywhere the
+        # emotion loss/metrics are computed.
+        out["text_logits"] = _pad_stack([item["text_logits"] for item in batch], max_len, pad_value=0.0)
+
     if "shift_label" in batch[0]:
         # pad_value=0 for both -- padded positions are already excluded via
         # dialogue_mask, and shift_mask=0 additionally excludes a real

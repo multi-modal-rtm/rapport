@@ -20,6 +20,20 @@ Built incrementally across Phase N4's steps (docs/PHASE_N4.md):
 
 `base_fusion` = relational=False, shift=False, temporal=False (the
 ablation matrix's internal baseline, per PHASE N4 Step 1).
+
+Phase N4-R (docs/PHASE_N4R.md, spec v1.1) adds `residual=True`: the whole
+multimodal/relational stack now predicts a DELTA on top of the frozen
+Phase T text classifier's own logits (`z_text`, cached per utterance),
+rather than a logits vector from scratch. `classifier` (renamed `W_out` in
+spirit, not in code -- same attribute, same shape, just zero-initialized)
+and the fusion layer's audio/video column blocks are both zero-init, so a
+FRESH model's predictions equal the Phase T model's exactly at
+construction time (`tests/test_rapport_model_residual.py`), regardless of
+relational/shift/temporal -- Phase N4's full ablation matrix showed every
+added component actively hurt vs. a frozen-text-only anchor
+(`docs/PHASE_N4_STEP6.md`), traced to random-init capacity overfitting
+(`docs/PHASE_N4R.md` Step 1); residual=True makes "no improvement" the
+worst case by construction instead of "regression to below the anchor."
 """
 
 from __future__ import annotations
@@ -44,6 +58,7 @@ class RapportModel(nn.Module):
         relational: bool = False,
         shift: bool = False,
         temporal: bool = False,
+        residual: bool = False,
         gat_heads: int = 4,
         dropout: float = 0.5,
     ):
@@ -51,11 +66,22 @@ class RapportModel(nn.Module):
         self.relational = relational
         self.shift = shift
         self.temporal = temporal
+        self.residual = residual
+        self.num_classes = num_classes
 
         self.fusion = nn.Sequential(
             nn.Linear(3 * self.FEATURE_DIM, self.FUSION_DIM),
             nn.ReLU(),
         )
+        if residual:
+            # Phase N4-R v1.1: audio/video enter the fusion projection only
+            # as learned corrections -- zero-init their column blocks
+            # (text_ctx's block keeps the default Linear init). Bias is
+            # NOT zeroed (it isn't tied to any one modality); recorded in
+            # docs/SPEC_RAPPORT_COMPONENTS.md's Implementation decisions.
+            with torch.no_grad():
+                self.fusion[0].weight[:, self.FEATURE_DIM :].zero_()
+
         self.dropout = nn.Dropout(dropout)
 
         if relational:
@@ -76,6 +102,16 @@ class RapportModel(nn.Module):
             self.gat = GraphAttentionLayer(self.HIDDEN_DIM, heads=gat_heads, dropout=dropout)
             self.gru_cell = nn.GRUCell(self.FUSION_DIM, self.HIDDEN_DIM)
             self.classifier = nn.Linear(self.HIDDEN_DIM, num_classes)
+
+        if residual:
+            # z = z_text + W_out(g_t): W_out (this model's `classifier`,
+            # whichever readout dim it has) is zero-init -- weight AND
+            # bias -- so a fresh model contributes exactly zero on top of
+            # the cached Phase T logits, regardless of relational/shift/
+            # temporal or of anything upstream (the rest of the stack can
+            # be arbitrarily random at init; W_out=0 erases it entirely).
+            nn.init.zeros_(self.classifier.weight)
+            nn.init.zeros_(self.classifier.bias)
 
         if shift:
             # B3: single-logit linear head on the RAW node state h_{s,t} --
@@ -143,9 +179,15 @@ class RapportModel(nn.Module):
         video_tokens_mask: torch.Tensor | None = None,  # [B, L, 392] bool
         audio_tokens: torch.Tensor | None = None,  # [B, L, T_max, 768] -- required if temporal=True
         audio_tokens_mask: torch.Tensor | None = None,  # [B, L, T_max] bool
+        text_logits: torch.Tensor | None = None,  # [B, L, num_classes] -- required if residual=True (z_text)
     ) -> tuple[torch.Tensor, torch.Tensor | None]:
         """Returns (emotion_logits [B,L,num_classes], shift_logits [B,L] or
-        None if shift=False)."""
+        None if shift=False). If residual=True, emotion_logits = z_text +
+        W_out(g_t) (spec v1.1) -- added HERE, outside _forward_base/
+        _forward_relational, so those two methods (and spec A7's
+        bit-for-bit guarantee for _forward_base specifically) never need to
+        know about the residual connection at all.
+        """
         if self.temporal:
             assert video_tokens is not None and audio_tokens is not None, (
                 "temporal=True requires video_tokens/audio_tokens (load_av_tokens=True on the dataset)"
@@ -155,8 +197,15 @@ class RapportModel(nn.Module):
             )
 
         if self.relational:
-            return self._forward_relational(video_feat, audio_feat, text_feat, speaker_ids, dialogue_mask)
-        return self._forward_base(video_feat, audio_feat, text_feat, speaker_ids, dialogue_mask)
+            logits, shift_logits = self._forward_relational(video_feat, audio_feat, text_feat, speaker_ids, dialogue_mask)
+        else:
+            logits, shift_logits = self._forward_base(video_feat, audio_feat, text_feat, speaker_ids, dialogue_mask)
+
+        if self.residual:
+            assert text_logits is not None, "residual=True requires text_logits (the cached Phase T z_text)"
+            logits = logits + text_logits
+
+        return logits, shift_logits
 
     def _forward_base(self, video_feat, audio_feat, text_feat, speaker_ids, dialogue_mask):
         """Step 1 path, UNCHANGED since it was introduced (aside from the

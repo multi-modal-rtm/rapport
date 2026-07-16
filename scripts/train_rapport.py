@@ -66,14 +66,22 @@ SHIFT_LOSS_WEIGHT = 0.5
 
 
 def build_dataloaders(
-    temporal: bool = False, batch_size: int = BATCH_SIZE, num_workers: int = NUM_WORKERS
+    temporal: bool = False,
+    residual: bool = False,
+    batch_size: int = BATCH_SIZE,
+    num_workers: int = NUM_WORKERS,
+    text_cache_subdir: str = "text_ctx",
 ) -> dict[str, DataLoader]:
     processed_dir = PROJECT_ROOT / "data" / "meld" / "processed"
     cache_dir = PROJECT_ROOT / "data" / "meld" / "cache"
     loaders = {}
     for split in ("train", "dev", "test"):
         dataset = MELDCachedDataset(
-            processed_dir / f"{split}.parquet", cache_dir, text_cache_subdir="text_ctx", load_av_tokens=temporal
+            processed_dir / f"{split}.parquet",
+            cache_dir,
+            text_cache_subdir=text_cache_subdir,
+            load_av_tokens=temporal,
+            load_text_logits=residual,
         )
         loaders[split] = DataLoader(
             dataset,
@@ -90,14 +98,17 @@ def _move_batch(batch: dict, device: torch.device) -> dict:
 
 
 def _model_forward(model: RapportModel, batch: dict):
+    kwargs = {}
     if model.temporal:
-        return model(
-            batch["video_feat"], batch["audio_feat"], batch["text_feat"], batch["speaker_ids"], batch["dialogue_mask"],
+        kwargs.update(
             video_tokens=batch["video_tokens"], video_tokens_mask=batch["video_tokens_mask"],
             audio_tokens=batch["audio_tokens"], audio_tokens_mask=batch["audio_tokens_mask"],
         )
+    if model.residual:
+        kwargs["text_logits"] = batch["text_logits"]
     return model(
-        batch["video_feat"], batch["audio_feat"], batch["text_feat"], batch["speaker_ids"], batch["dialogue_mask"]
+        batch["video_feat"], batch["audio_feat"], batch["text_feat"], batch["speaker_ids"], batch["dialogue_mask"],
+        **kwargs,
     )
 
 
@@ -139,14 +150,27 @@ def evaluate_split(model: RapportModel, loader: DataLoader, device: torch.device
     return weighted_f1, macro_f1, labels_list, preds, logits, labels, shift_f1
 
 
-def train(seed: int, relational: bool, shift: bool, temporal: bool, run_dir: Path) -> dict:
+def train(
+    seed: int,
+    relational: bool,
+    shift: bool,
+    temporal: bool,
+    run_dir: Path,
+    residual: bool = False,
+    text_cache_subdir: str = "text_ctx",
+) -> dict:
     run_dir.mkdir(parents=True, exist_ok=True)
     set_seed(seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    loaders = build_dataloaders(temporal=temporal)
+    loaders = build_dataloaders(temporal=temporal, residual=residual, text_cache_subdir=text_cache_subdir)
     model = RapportModel(
-        num_classes=NUM_CLASSES, relational=relational, shift=shift, temporal=temporal, dropout=DROPOUT
+        num_classes=NUM_CLASSES,
+        relational=relational,
+        shift=shift,
+        temporal=temporal,
+        residual=residual,
+        dropout=DROPOUT,
     ).to(device)
 
     optimizer = AdamW(model.parameters(), lr=LR)
@@ -259,6 +283,7 @@ def train(seed: int, relational: bool, shift: bool, temporal: bool, run_dir: Pat
             "relational": relational,
             "shift": shift,
             "temporal": temporal,
+            "residual": residual,
             "test_weighted_f1": test_weighted_f1,
             "test_macro_f1": test_macro_f1,
             "test_shift_f1": test_shift_f1,
@@ -284,11 +309,21 @@ def main() -> None:
     parser.add_argument("--relational", action="store_true")
     parser.add_argument("--shift", action="store_true")
     parser.add_argument("--temporal", action="store_true")
+    parser.add_argument("--residual", action="store_true", help="Phase N4-R spec v1.1 residual redesign.")
     parser.add_argument("--run_name", type=str, required=True)
+    parser.add_argument(
+        "--text_cache_subdir",
+        type=str,
+        default="text_ctx",
+        help="Override the text_ctx cache subdir (e.g. text_ctx_k0 for the Phase N4-R Step 2 redundancy probe).",
+    )
     args = parser.parse_args()
 
     run_dir = PROJECT_ROOT / "outputs" / args.run_name
-    report = train(args.seed, args.relational, args.shift, args.temporal, run_dir)
+    report = train(
+        args.seed, args.relational, args.shift, args.temporal, run_dir,
+        residual=args.residual, text_cache_subdir=args.text_cache_subdir,
+    )
     print(
         f"[done] run_name={args.run_name} test_weighted_f1={report['test_weighted_f1']:.4f} "
         f"test_macro_f1={report['test_macro_f1']:.4f} test_accuracy={report['test_accuracy']:.4f} "

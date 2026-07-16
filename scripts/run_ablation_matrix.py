@@ -1,6 +1,10 @@
-"""Phase N4 Step 5: runs the full ablation matrix --
-{full, minus_relational, minus_shift, minus_temporal, base_fusion} x seeds
-{42, 1337, 2024} = 15 runs -- via scripts.train_rapport.train.
+"""Phase N4 Step 5 / Phase N4-R Step 4: runs an ablation matrix via
+scripts.train_rapport.train. Two matrices share this runner:
+  - Phase N4 Step 5 (original architecture): {full, minus_relational,
+    minus_shift, minus_temporal, base_fusion} x seeds {42, 1337, 2024} = 15
+    runs -- HARD-gate FAILED, see docs/PHASE_N4_STEP6.md.
+  - Phase N4-R Step 4 (residual redesign, spec v1.1): {base_fusion_R,
+    full_R, minus_relational_R} x seeds {42, 1337, 2024} = 9 runs.
 
 Idempotent: skips any (config, seed) whose outputs/<run_name>/metrics.json
 already exists, so an interrupted or partially-completed matrix can be
@@ -10,6 +14,7 @@ Phase N4 Step 1 is reused this way rather than retrained.
 Usage (run as a module -- it imports scripts.train_rapport):
     uv run python -m scripts.run_ablation_matrix
     uv run python -m scripts.run_ablation_matrix --configs full base_fusion --seeds 42
+    uv run python -m scripts.run_ablation_matrix --configs base_fusion_R full_R minus_relational_R --summary-name n4r_step4_summary
 """
 
 from __future__ import annotations
@@ -23,13 +28,17 @@ from scripts.train_rapport import train
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
-# name -> (relational, shift, temporal)
+# name -> (relational, shift, temporal, residual)
 CONFIGS: dict[str, dict[str, bool]] = {
     "full": {"relational": True, "shift": True, "temporal": True},
     "minus_relational": {"relational": False, "shift": True, "temporal": True},
     "minus_shift": {"relational": True, "shift": False, "temporal": True},
     "minus_temporal": {"relational": True, "shift": True, "temporal": False},
     "base_fusion": {"relational": False, "shift": False, "temporal": False},
+    # Phase N4-R Step 4: residual redesign, compact re-run (spec v1.1).
+    "full_R": {"relational": True, "shift": True, "temporal": True, "residual": True},
+    "minus_relational_R": {"relational": False, "shift": True, "temporal": True, "residual": True},
+    "base_fusion_R": {"relational": False, "shift": False, "temporal": False, "residual": True},
 }
 SEEDS = (42, 1337, 2024)
 
@@ -38,6 +47,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--configs", nargs="+", default=list(CONFIGS.keys()), choices=list(CONFIGS.keys()))
     parser.add_argument("--seeds", nargs="+", type=int, default=list(SEEDS))
+    parser.add_argument("--summary-name", type=str, default="ablation_matrix_summary")
     args = parser.parse_args()
 
     results = {}
@@ -70,7 +80,7 @@ def main() -> None:
                 flush=True,
             )
 
-    summary_path = PROJECT_ROOT / "outputs" / "ablation_matrix_summary.json"
+    summary_path = PROJECT_ROOT / "outputs" / f"{args.summary_name}.json"
     summary_path.write_text(json.dumps(results, indent=2))
     print(f"[done] wrote {summary_path}", flush=True)
 

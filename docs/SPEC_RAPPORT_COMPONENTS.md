@@ -8,6 +8,79 @@ implementation makes a choice and records it in the "Implementation
 decisions" appendix at the bottom of this file, rather than leaving the
 choice undocumented.
 
+**v1.1 addendum (Phase N4-R, `docs/PHASE_N4R.md`): see section D below.**
+Sections A-C (relational memory, shift objective, temporal attention) are
+UNCHANGED mechanically -- v1.1 only changes how the stack's output
+combines with the frozen text classifier's own logits, and how the fusion
+projector's audio/video blocks are initialized. Everything in A-C below
+still describes the actual, current implementation.
+
+## D. Residual "do-no-harm" redesign (v1.1)
+
+Phase N4's full 15-run ablation matrix (`docs/PHASE_N4_STEP6.md`) found a
+clean, monotonic HARD-gate failure: `base_fusion` (no relational/shift/
+temporal) beat every config that added any of the three components, and
+`full` (all three) was the second-worst of five. Phase N4-R's diagnosis
+(`docs/PHASE_N4R.md` Steps 1-2) traced this primarily to overfitting --
+train-vs-val gap grew monotonically with component count (mean +0.129 for
+`base_fusion` -> +0.225 for `full`) -- with a smaller, secondary
+contribution from the k=8 contextual text encoder already covering most of
+what graph-level recency context would add.
+
+**D1. Cached text logits.** The frozen Phase T checkpoint's own 7-d
+classifier output, `z_text`, is cached per utterance alongside the 768-d
+embedding (`scripts/build_text_ctx_cache.py`, sibling `{subdir}_logits`
+cache dir, same frozen forward pass -- no extra model calls).
+
+**D2. Residual connection.** The multimodal/relational stack's final
+layer (`RapportModel.classifier`, playing the role of `W_out` in
+`z = z_text + W_out(g_t)`) is ZERO-INITIALIZED (weight and bias), where
+`g_t` is exactly the same readout the non-residual classifier already
+consumed (`[h_{s,t} || mean_j e_{sj,t}]` for `relational=True`, `h_{s,t}`
+otherwise -- spec A6). Because `W_out=0` at construction, `W_out(g_t) = 0`
+for ANY `g_t`, regardless of how randomly-initialized the rest of the
+stack is -- the emotion logits equal `z_text` exactly at t=0, for every
+combination of relational/shift/temporal.
+
+**D3. Fusion projector A/V blocks.** The fusion layer's audio and video
+column blocks (`fusion[0].weight[:, 768:2304]`) are ALSO zero-init (text's
+block keeps the default `nn.Linear` init); audio/video enter only as
+learned corrections. This is not required for D2's zero-at-init guarantee
+(which holds regardless, since `W_out=0` erases anything upstream) -- it's
+a separate choice about early-training dynamics, so the model's first
+gradient steps improve the text-only prediction rather than immediately
+mixing in unlearned A/V noise.
+
+**D4. Property test (the new invariant).** At initialization, every
+config's predictions equal the Phase T model's predictions EXACTLY (not
+approximately -- `torch.equal`), for every combination of relational/
+shift/temporal. `tests/test_rapport_model_residual.py`, parametrized over
+all 8 flag combinations.
+
+**D5. Everything else unchanged from v1.0**: shift head (spec B, lambda
+0.5, selection on val macro F1), relational memory (spec A), temporal
+attention (spec C), plain CE loss, optimizer/schedule/dropout (RECIPE.md
+locked GNN values).
+
+### Implementation decisions (v1.1)
+
+**Where the residual add happens.** `logits = logits + text_logits` is
+applied in `RapportModel.forward`, OUTSIDE `_forward_base`/
+`_forward_relational` -- neither of those two methods needs to know
+`residual` exists at all. This preserves spec A7's bit-for-bit guarantee
+for `_forward_base` without any extra conditional logic inside it, and
+keeps the residual mechanism entirely orthogonal to which of the two node
+paths is active.
+
+**Fusion bias is NOT zeroed.** Only the audio/video weight COLUMNS are
+zero-init (D3); the fusion layer's bias term isn't tied to any one
+modality, so it keeps the default `nn.Linear` init.
+
+**Shift head is untouched by the residual mechanism.** There's no
+"Phase-T shift baseline" to residual against (shift is a genuinely new
+signal), so `shift_head` keeps its ordinary (non-zero) init regardless of
+`residual`.
+
 ---
 
 ## A. RELATIONAL EDGE MEMORY

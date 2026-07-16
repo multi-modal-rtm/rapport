@@ -2,6 +2,10 @@
 contextual embedding (`ContextTextClassifier.encode`, masked mean of
 last_hidden_state, k=8 context window per docs/PHASE_T.md) for every MELD
 utterance, all splits, to data/meld/cache/text_ctx/{split}/dia{d}_utt{u}.pt.
+Also caches the SAME model's 7-d classifier logits (z_text) alongside it,
+to data/meld/cache/{out-subdir}_logits/{split}/... -- Phase N4-R's
+residual redesign (spec v1.1, docs/PHASE_N4R.md) adds these to the
+multimodal stack's own logits rather than starting from scratch.
 
 The encoder is FROZEN at the Phase T seed-42 (plain-CE recipe) best
 checkpoint (`outputs/context_text_plain_ce_seed42/best_model.pt`) for the
@@ -11,10 +15,17 @@ head's init and data order, not from re-encoding text.
 
 Usage:
     uv run python scripts/build_text_ctx_cache.py
+    uv run python scripts/build_text_ctx_cache.py --k 0 --out-subdir text_ctx_k0
+
+`--k`/`--out-subdir` support Phase N4-R Step 2's redundancy probe: the SAME
+frozen encoder, fed context-free (k=0) input instead of the default k=8,
+written to a separate cache subdir so it never collides with the k=8 cache
+every other Phase N4 config depends on.
 """
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import os
@@ -64,21 +75,30 @@ def load_frozen_encoder(device: torch.device) -> ContextTextClassifier:
 
 
 @torch.no_grad()
-def build_split_cache(model: ContextTextClassifier, tokenizer, split: str, out_dir: Path, device: torch.device) -> int:
+def build_split_cache(
+    model: ContextTextClassifier,
+    tokenizer,
+    split: str,
+    out_dir: Path,
+    logits_out_dir: Path,
+    device: torch.device,
+    k: int = DEFAULT_K,
+) -> int:
     processed_dir = PROJECT_ROOT / "data" / "meld" / "processed"
-    dataset = MELDContextTextDataset(
-        processed_dir / f"{split}.parquet", tokenizer, k=DEFAULT_K, max_length=DEFAULT_MAX_LENGTH
-    )
+    dataset = MELDContextTextDataset(processed_dir / f"{split}.parquet", tokenizer, k=k, max_length=DEFAULT_MAX_LENGTH)
     collate = ContextTextCollator(pad_token_id=tokenizer.pad_token_id)
     loader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=collate, num_workers=4)
 
     split_dir = out_dir / split
     split_dir.mkdir(parents=True, exist_ok=True)
+    logits_split_dir = logits_out_dir / split
+    logits_split_dir.mkdir(parents=True, exist_ok=True)
 
     n_written = 0
     for batch_start, batch in zip(range(0, len(dataset), BATCH_SIZE), loader):
         batch_gpu = {k: v.to(device) for k, v in batch.items() if k != "labels"}
         pooled = model.encode(batch_gpu["input_ids"], batch_gpu["attention_mask"])  # [B, 768]
+        logits = model.classifier(pooled)  # [B, num_classes] -- z_text, spec v1.1
 
         for i in range(pooled.shape[0]):
             dialogue_id, t = dataset.index[batch_start + i]
@@ -90,27 +110,35 @@ def build_split_cache(model: ContextTextClassifier, tokenizer, split: str, out_d
             utterance_id = int(dataset.dialogues[dialogue_id]["utterance_id"].iloc[t])
             stem = f"dia{dialogue_id}_utt{utterance_id}.pt"
             torch.save(pooled[i].float().cpu(), split_dir / stem)
+            torch.save(logits[i].float().cpu(), logits_split_dir / stem)
             n_written += 1
 
     return n_written
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--k", type=int, default=DEFAULT_K)
+    parser.add_argument("--out-subdir", type=str, default="text_ctx")
+    args = parser.parse_args()
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"[build_text_ctx_cache] device={device} checkpoint={FROZEN_CHECKPOINT}")
+    print(f"[build_text_ctx_cache] device={device} checkpoint={FROZEN_CHECKPOINT} k={args.k}")
     checkpoint_hash = sha256_of(FROZEN_CHECKPOINT)
     print(f"[build_text_ctx_cache] checkpoint sha256={checkpoint_hash}")
 
     tokenizer = AutoTokenizer.from_pretrained("roberta-base")
     model = load_frozen_encoder(device)
 
-    out_dir = PROJECT_ROOT / "data" / "meld" / "cache" / "text_ctx"
+    out_dir = PROJECT_ROOT / "data" / "meld" / "cache" / args.out_subdir
     out_dir.mkdir(parents=True, exist_ok=True)
+    logits_out_dir = PROJECT_ROOT / "data" / "meld" / "cache" / f"{args.out_subdir}_logits"
+    logits_out_dir.mkdir(parents=True, exist_ok=True)
 
     counts = {}
     for split in SPLITS:
         start = time.time()
-        n = build_split_cache(model, tokenizer, split, out_dir, device)
+        n = build_split_cache(model, tokenizer, split, out_dir, logits_out_dir, device, k=args.k)
         counts[split] = n
         print(f"[build_text_ctx_cache] split={split} wrote {n} files in {time.time() - start:.1f}s")
 
@@ -119,9 +147,10 @@ def main() -> None:
         "built_at": datetime.now(timezone.utc).isoformat(),
         "checkpoint_path": str(FROZEN_CHECKPOINT.relative_to(PROJECT_ROOT)),
         "checkpoint_sha256": checkpoint_hash,
-        "k": DEFAULT_K,
+        "k": args.k,
         "max_length": DEFAULT_MAX_LENGTH,
         "pooling": "masked_mean_last_hidden_state",
+        "logits_cache_subdir": f"{args.out_subdir}_logits",
         "splits": counts,
     }
     (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2))
