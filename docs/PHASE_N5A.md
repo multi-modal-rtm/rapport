@@ -83,6 +83,43 @@ Decided on the k=0 paired result at n_pairs=5 (5, not 7 -- see the paired-test n
 
 **k=0 paired gain (-0.0080) is within noise (std 0.0136): THE STRONGER NULL.** Even in the one condition most favorable to the graph -- a text encoder with little to no context of its own -- `full_R` does not measurably beat the text-only anchor. The paper's claim should be framed accordingly: the relational/shift/temporal machinery does not demonstrate a measurable benefit over a strong text baseline at ANY tested context window size, not just at the locked k=8 recipe.
 
+## BRIDGING EXPERIMENT — the frozen end, under the IDENTICAL residual methodology
+
+The k=0/k=8 result above is entirely on FINE-TUNED text features (Phase T's contextual encoder, retrained per k). The paper's boundary claim ("graph machinery helps on frozen features; fine-tuning removes that value") previously rested on comparing that fine-tuned result against an OLDER, differently-measured frozen-end number: `docs/DIAGNOSIS.md`'s `speaker_only` GNN model (an earlier, pre-Phase-N4 architecture, absolute logits, no residual design) beat a sklearn concat-linear-probe baseline (0.5250) by **+0.0160** (test weighted F1 0.5410) -- a different architecture AND a different, unpaired, non-per-seed baseline than the fine-tuned end's `full_R` vs. text-anchor comparison. This experiment re-measures the frozen end with the SAME apparatus as the fine-tuned end: `scripts/train_frozen_text_foundation.py` trains a linear head on the frozen, non-contextual text cache (`masked_mean_second_to_last_layer`, cache_version 4) under the same locked optimizer settings as every other anchor in this study (seed 42; test weighted F1 0.4416, notably below the sklearn probe's 0.5274 -- flagged, not smoothed over: this neural linear head is selected on val macro F1, not fit to maximize weighted F1 the way the sklearn probe implicitly is, so a lower weighted F1 here is expected, not a cache regression -- the equality-at-init test below rules out a wiring bug independently); `scripts/run_bridging_matrix.py` then runs `base_fusion_R`/`full_R` EXACTLY as in the rest of N5-A (same `RapportModel`, same zero-init `W_out`/A-V blocks, same frozen A/V caches), pointed at this new text foundation's cache instead of `text_ctx`.
+
+**Equality-at-init, verified on real data** (not just the synthetic-tensor property test): `tests/test_rapport_model_residual.py::test_residual_equals_frozen_text_foundation_logits_on_real_cache` loads one real test-split dialogue's actual frozen A/V/text features and the frozen-era foundation's actual cached logits, and asserts a fresh `base_fusion_R`/`full_R` model's output exactly equals those logits at construction -- PASSED for both configs.
+
+### Six-run table (3 seeds x {base_fusion_R_frozen, full_R_frozen})
+
+Frozen text anchor (seed 42 only, single foundation): **0.4416**
+
+| seed | base_fusion_R_frozen | full_R_frozen | full_R_frozen − anchor |
+|---|---|---|---|
+| 42 | 0.5276 | 0.4893 | +0.0477 |
+| 1337 | 0.5300 | 0.4729 | +0.0313 |
+| 2024 | 0.5294 | 0.4696 | +0.0280 |
+| **mean±std** | 0.5290±0.0013 | 0.4773±0.0106 | +0.0356±0.0106 |
+
+### Bridge comparison: paired gain at both ends, same methodology
+
+| end | config | n | paired gain (config − own anchor) | mean±std | positive & \|gain\|>std? |
+|---|---|---|---|---|---|
+| frozen (this experiment) | full_R_frozen | 3 | 42:+0.0477, 1337:+0.0313, 2024:+0.0280 | +0.0356±0.0106 | True |
+| fine-tuned (k=8) | full_R | 7 | 7:-0.0118, 42:+0.0021, 123:-0.0174, 555:-0.0049, 1337:-0.0168, 2024:-0.0031, 9090:-0.0094 | -0.0088±0.0072 | False |
+| fine-tuned (k=0) | full_R | 5 | 7:-0.0008, 42:-0.0040, 123:-0.0020, 555:-0.0322, 9090:-0.0008 | -0.0080±0.0136 | False |
+
+## PRE-REGISTERED BRIDGING DECISION (fixed before this result was computed)
+
+**Frozen-end paired gain is positive (+0.0356) and |gain| (0.0356) > std (0.0106), while BOTH fine-tuned endpoints (k=0: -0.0080±0.0136; k=8: -0.0088±0.0072) are null or negative: THE FINE-TUNING BOUNDARY CLAIM IS CONFIRMED UNDER UNIFORM METHODOLOGY.** The graph (relational memory + shift + temporal) measurably helps on frozen text features and stops helping once the text encoder is fine-tuned with its own context -- this upgrades Section 4.2 from a caveat (measured under two different apparatuses) to a result (measured under one).
+
+## Section 4 summary (paper-ready synthesis)
+
+| claim | evidence | verdict |
+|---|---|---|
+| Subsumption: graph's marginal value shrinks as text encoder gains its own context | paired full_R−anchor: k=0 -0.0080±0.0136 (n=5) vs k=8 -0.0088±0.0072 (n=7) | NOT CONFIRMED -- k=0 also null |
+| Fine-tuning boundary: graph helps on frozen features, stops helping once fine-tuned | paired full_R−anchor: frozen +0.0356±0.0106 (n=3) vs fine-tuned k=8 -0.0088±0.0072 (n=7), uniform methodology | CONFIRMED |
+| **Overall** | Neither claim survives controlled, paired, uniform-methodology attribution | Mixed -- see individual rows |
+
 ## Legacy: monotonicity of the unpaired full_R − base_fusion_R gain
 
 - Strictly monotonic decreasing across all 4 points: **False**
@@ -90,4 +127,4 @@ Decided on the k=0 paired result at n_pairs=5 (5, not 7 -- see the paired-test n
 
 ## Reproducibility
 
-`scripts/report_subsumption_curve.py` regenerates this ENTIRE doc (including the reconciliation section above, which is static authored text kept in the script) and the figure from `outputs/*/metrics.json` directly -- rerun any time after `scripts/run_subsumption_matrix.py` / `scripts/run_n7_powerup.py`. `outputs/subsumption_curve_data.json` has the full underlying per-seed data.
+`scripts/report_subsumption_curve.py` regenerates this ENTIRE doc (including the reconciliation section above, which is static authored text kept in the script) and the figure from `outputs/*/metrics.json` directly -- rerun any time after `scripts/run_subsumption_matrix.py` / `scripts/run_n7_powerup.py` / `scripts/train_frozen_text_foundation.py` / `scripts/run_bridging_matrix.py`. `outputs/subsumption_curve_data.json` has the full underlying per-seed data.

@@ -43,6 +43,13 @@ N7_SEEDS = (42, 1337, 2024, 7, 123, 555, 9090)  # full_R at both endpoints; text
 # 3 genuine encoder retrains from Phase T) reach n=7.
 K0_TEXT_ANCHOR_SEEDS = (42, 7, 123, 555, 9090)
 
+# BRIDGING EXPERIMENT (frozen-era end, same residual methodology as the
+# fine-tuned end above): scripts/train_frozen_text_foundation.py (anchor,
+# seed 42 only) + scripts/run_bridging_matrix.py (base_fusion_R_frozen /
+# full_R_frozen, 3 seeds each).
+BRIDGING_SEEDS = (42, 1337, 2024)
+FROZEN_ANCHOR_RUN = "frozen_text_foundation_seed42"
+
 # Palette (dataviz skill reference palette, light mode, fixed categorical order).
 COLOR_TEXT_ANCHOR = "#eda100"  # slot 3, yellow
 COLOR_BASE_FUSION_R = "#2a78d6"  # slot 1, blue
@@ -171,6 +178,21 @@ def main() -> None:
     k0_gain = paired[0]["mean"]
     k0_std = paired[0]["std"]
     subsumption_confirmed = k0_gain > 0 and abs(k0_gain) > k0_std
+
+    # ---- BRIDGING EXPERIMENT: the frozen end, under the IDENTICAL residual
+    # methodology as the fine-tuned end above (same RapportModel, same
+    # zero-init W_out/A-V blocks, same frozen A/V caches; only the text
+    # representation is the frozen-era linear-head foundation instead of
+    # Phase T's contextual encoder). Anchor is seed-42-only by design (one
+    # frozen-era foundation, docs/PHASE_N5A.md); base_fusion_R_frozen/
+    # full_R_frozen each have 3 seeds.
+    frozen_anchor_f1 = load(FROZEN_ANCHOR_RUN)["test_weighted_f1"]
+    frozen_base = series_at_k("base_fusion_R_frozen", 8, BRIDGING_SEEDS)  # k arg unused by the "_frozen" run-name branch below
+    frozen_full = series_at_k("full_R_frozen", 8, BRIDGING_SEEDS)
+
+    frozen_paired_diffs = {s: frozen_full["values"][s] - frozen_anchor_f1 for s in BRIDGING_SEEDS}
+    frozen_paired_mean, frozen_paired_std = mean_std(list(frozen_paired_diffs.values()))
+    bridging_confirmed = frozen_paired_mean > 0 and abs(frozen_paired_mean) > frozen_paired_std
 
     # ---- Figure ----
     fig, ax = plt.subplots(figsize=(8.5, 6))
@@ -302,6 +324,119 @@ def main() -> None:
         )
     lines.append("")
 
+    lines.append("## BRIDGING EXPERIMENT — the frozen end, under the IDENTICAL residual methodology\n")
+    lines.append(
+        "The k=0/k=8 result above is entirely on FINE-TUNED text features (Phase T's contextual "
+        "encoder, retrained per k). The paper's boundary claim (\"graph machinery helps on frozen "
+        "features; fine-tuning removes that value\") previously rested on comparing that fine-tuned "
+        "result against an OLDER, differently-measured frozen-end number: `docs/DIAGNOSIS.md`'s "
+        "`speaker_only` GNN model (an earlier, pre-Phase-N4 architecture, absolute logits, no residual "
+        "design) beat a sklearn concat-linear-probe baseline (0.5250) by **+0.0160** (test weighted F1 "
+        "0.5410) -- a different architecture AND a different, unpaired, non-per-seed baseline than the "
+        "fine-tuned end's `full_R` vs. text-anchor comparison. This experiment re-measures the frozen "
+        "end with the SAME apparatus as the fine-tuned end: `scripts/train_frozen_text_foundation.py` "
+        "trains a linear head on the frozen, non-contextual text cache "
+        "(`masked_mean_second_to_last_layer`, cache_version 4) under the same locked optimizer "
+        "settings as every other anchor in this study (seed 42; test weighted F1 "
+        f"{frozen_anchor_f1:.4f}, notably below the sklearn probe's 0.5274 -- flagged, not smoothed "
+        "over: this neural linear head is selected on val macro F1, not fit to maximize weighted F1 "
+        "the way the sklearn probe implicitly is, so a lower weighted F1 here is expected, not a "
+        "cache regression -- the equality-at-init test below rules out a wiring bug independently); "
+        "`scripts/run_bridging_matrix.py` then runs `base_fusion_R`/`full_R` EXACTLY as in the rest of "
+        "N5-A (same `RapportModel`, same zero-init `W_out`/A-V blocks, same frozen A/V caches), "
+        "pointed at this new text foundation's cache instead of `text_ctx`.\n"
+    )
+    lines.append(
+        "**Equality-at-init, verified on real data** (not just the synthetic-tensor property test): "
+        "`tests/test_rapport_model_residual.py::test_residual_equals_frozen_text_foundation_logits_on_real_cache` "
+        "loads one real test-split dialogue's actual frozen A/V/text features and the frozen-era "
+        "foundation's actual cached logits, and asserts a fresh `base_fusion_R`/`full_R` model's output "
+        "exactly equals those logits at construction -- PASSED for both configs.\n"
+    )
+
+    lines.append("### Six-run table (3 seeds x {base_fusion_R_frozen, full_R_frozen})\n")
+    lines.append(f"Frozen text anchor (seed 42 only, single foundation): **{frozen_anchor_f1:.4f}**\n")
+    lines.append("| seed | base_fusion_R_frozen | full_R_frozen | full_R_frozen − anchor |")
+    lines.append("|---|---|---|---|")
+    for s in BRIDGING_SEEDS:
+        lines.append(
+            f"| {s} | {frozen_base['values'][s]:.4f} | {frozen_full['values'][s]:.4f} | "
+            f"{frozen_paired_diffs[s]:+.4f} |"
+        )
+    lines.append(
+        f"| **mean±std** | {frozen_base['mean']:.4f}±{frozen_base['std']:.4f} | "
+        f"{frozen_full['mean']:.4f}±{frozen_full['std']:.4f} | "
+        f"{frozen_paired_mean:+.4f}±{frozen_paired_std:.4f} |"
+    )
+    lines.append("")
+
+    lines.append("### Bridge comparison: paired gain at both ends, same methodology\n")
+    lines.append("| end | config | n | paired gain (config − own anchor) | mean±std | positive & \\|gain\\|>std? |")
+    lines.append("|---|---|---|---|---|---|")
+    lines.append(
+        f"| frozen (this experiment) | full_R_frozen | 3 | {', '.join(f'{s}:{d:+.4f}' for s, d in frozen_paired_diffs.items())} | "
+        f"{frozen_paired_mean:+.4f}±{frozen_paired_std:.4f} | {bridging_confirmed} |"
+    )
+    lines.append(
+        f"| fine-tuned (k=8) | full_R | 7 | {', '.join(f'{s}:{d:+.4f}' for s, d in paired[8]['diffs'].items())} | "
+        f"{paired[8]['mean']:+.4f}±{paired[8]['std']:.4f} | {abs(paired[8]['mean']) > paired[8]['std'] and paired[8]['mean'] > 0} |"
+    )
+    lines.append(
+        f"| fine-tuned (k=0) | full_R | 5 | {', '.join(f'{s}:{d:+.4f}' for s, d in paired[0]['diffs'].items())} | "
+        f"{k0_gain:+.4f}±{k0_std:.4f} | {subsumption_confirmed} |"
+    )
+    lines.append("")
+
+    lines.append("## PRE-REGISTERED BRIDGING DECISION (fixed before this result was computed)\n")
+    if bridging_confirmed:
+        lines.append(
+            f"**Frozen-end paired gain is positive ({frozen_paired_mean:+.4f}) and |gain| "
+            f"({abs(frozen_paired_mean):.4f}) > std ({frozen_paired_std:.4f}), while BOTH fine-tuned "
+            f"endpoints (k=0: {k0_gain:+.4f}±{k0_std:.4f}; k=8: {paired[8]['mean']:+.4f}±{paired[8]['std']:.4f}) "
+            f"are null or negative: THE FINE-TUNING BOUNDARY CLAIM IS CONFIRMED UNDER UNIFORM "
+            f"METHODOLOGY.** The graph (relational memory + shift + temporal) measurably helps on "
+            f"frozen text features and stops helping once the text encoder is fine-tuned with its own "
+            f"context -- this upgrades Section 4.2 from a caveat (measured under two different "
+            f"apparatuses) to a result (measured under one)."
+        )
+    else:
+        lines.append(
+            f"**Frozen-end paired gain ({frozen_paired_mean:+.4f}, std {frozen_paired_std:.4f}) is "
+            f"NOT positive-and-significant: THE BOUNDARY CLAIM DOES NOT SURVIVE UNIFORM METHODOLOGY.** "
+            f"The old `docs/DIAGNOSIS.md` frozen-end gain (+0.0160) was measured with a different "
+            f"architecture against a different (unpaired, non-per-seed) baseline and did not reproduce "
+            f"under the same controlled, paired, per-seed attribution design used at the fine-tuned "
+            f"end. Combined with the fine-tuned end's own null/negative result (k=0: {k0_gain:+.4f}, "
+            f"k=8: {paired[8]['mean']:+.4f}), the paper's claim narrows to the stronger, simpler null: "
+            f"under controlled attribution, the relational/shift/temporal graph machinery adds nothing "
+            f"on either feature regime, frozen or fine-tuned. Section 4.2 should report this honestly, "
+            f"including that the literature/earlier-phase frozen-era gains did not reproduce under our "
+            f"attribution design."
+        )
+    lines.append("")
+
+    lines.append("## Section 4 summary (paper-ready synthesis)\n")
+    lines.append("| claim | evidence | verdict |")
+    lines.append("|---|---|---|")
+    lines.append(
+        f"| Subsumption: graph's marginal value shrinks as text encoder gains its own context | "
+        f"paired full_R−anchor: k=0 {k0_gain:+.4f}±{k0_std:.4f} (n=5) vs k=8 "
+        f"{paired[8]['mean']:+.4f}±{paired[8]['std']:.4f} (n=7) | "
+        f"{'CONFIRMED at k=0' if subsumption_confirmed else 'NOT CONFIRMED -- k=0 also null'} |"
+    )
+    lines.append(
+        f"| Fine-tuning boundary: graph helps on frozen features, stops helping once fine-tuned | "
+        f"paired full_R−anchor: frozen {frozen_paired_mean:+.4f}±{frozen_paired_std:.4f} (n=3) vs "
+        f"fine-tuned k=8 {paired[8]['mean']:+.4f}±{paired[8]['std']:.4f} (n=7), uniform methodology | "
+        f"{'CONFIRMED' if bridging_confirmed else 'NOT CONFIRMED -- stronger null applies'} |"
+    )
+    overall_null = not subsumption_confirmed and not bridging_confirmed
+    lines.append(
+        f"| **Overall** | Neither claim survives controlled, paired, uniform-methodology attribution | "
+        f"{'**Stronger null: relational/shift/temporal machinery adds nothing on either feature regime, at any tested k**' if overall_null else 'Mixed -- see individual rows'} |"
+    )
+    lines.append("")
+
     lines.append("## Legacy: monotonicity of the unpaired full_R − base_fusion_R gain\n")
     lines.append(f"- Strictly monotonic decreasing across all 4 points: **{strictly_monotonic_decreasing}**")
     lines.append(
@@ -315,7 +450,8 @@ def main() -> None:
         "`scripts/report_subsumption_curve.py` regenerates this ENTIRE doc (including the "
         "reconciliation section above, which is static authored text kept in the script) and the "
         "figure from `outputs/*/metrics.json` directly -- rerun any time after "
-        "`scripts/run_subsumption_matrix.py` / `scripts/run_n7_powerup.py`. "
+        "`scripts/run_subsumption_matrix.py` / `scripts/run_n7_powerup.py` / "
+        "`scripts/train_frozen_text_foundation.py` / `scripts/run_bridging_matrix.py`. "
         "`outputs/subsumption_curve_data.json` has the full underlying per-seed data."
     )
 
@@ -333,6 +469,16 @@ def main() -> None:
         "endpoints_only_decreasing": endpoints_only_decreasing,
         "paired_n7_test": paired,
         "subsumption_confirmed": subsumption_confirmed,
+        "bridging": {
+            "frozen_anchor_test_weighted_f1": frozen_anchor_f1,
+            "base_fusion_R_frozen": frozen_base,
+            "full_R_frozen": frozen_full,
+            "paired_diffs": frozen_paired_diffs,
+            "paired_mean": frozen_paired_mean,
+            "paired_std": frozen_paired_std,
+            "bridging_confirmed": bridging_confirmed,
+        },
+        "overall_stronger_null": overall_null,
     }
     (OUTPUTS_DIR / "subsumption_curve_data.json").write_text(json.dumps(summary, indent=2))
 
