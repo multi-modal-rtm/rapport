@@ -25,10 +25,10 @@ SPLITS = ("train", "dev", "test")
 MODALITIES = ("video", "audio", "text")
 
 
-def check_counts_and_overlap(processed_dir: Path, cache_dir: Path) -> None:
+def check_counts_and_overlap(processed_dir: Path, cache_dir: Path, splits: tuple[str, ...] = SPLITS) -> None:
     print("=== count check: cache files vs index rows, per split ===")
     seen_keys_by_split: dict[str, set[str]] = {}
-    for split in SPLITS:
+    for split in splits:
         df = pd.read_parquet(processed_dir / f"{split}.parquet")
         n_rows = len(df)
         keys = {f"dia{row.dialogue_id}_utt{row.utterance_id}" for row in df.itertuples(index=False)}
@@ -39,20 +39,20 @@ def check_counts_and_overlap(processed_dir: Path, cache_dir: Path) -> None:
             print(f"  {modality}/{split}: index_rows={n_rows} cache_files={n_files} [{status}]")
 
     print("=== cross-split key overlap check ===")
-    for i, split_a in enumerate(SPLITS):
-        for split_b in SPLITS[i + 1 :]:
+    for i, split_a in enumerate(splits):
+        for split_b in splits[i + 1 :]:
             overlap = seen_keys_by_split[split_a] & seen_keys_by_split[split_b]
             status = "OK (zero overlap)" if not overlap else f"COLLISION: {len(overlap)} shared keys"
             print(f"  {split_a} vs {split_b}: {status}")
 
 
-def sample_and_recompute(processed_dir: Path, cache_dir: Path, n_samples: int, seed: int) -> None:
+def sample_and_recompute(processed_dir: Path, cache_dir: Path, n_samples: int, seed: int, splits: tuple[str, ...] = SPLITS) -> None:
     print(f"=== live recompute vs cache, {n_samples} random utterances ===")
     rng = random.Random(seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     frames_per_split = []
-    for split in SPLITS:
+    for split in splits:
         df = pd.read_parquet(processed_dir / f"{split}.parquet")
         df = df.copy()
         df["split"] = split
@@ -114,10 +114,12 @@ def main() -> None:
     parser.add_argument("--cache-dir", default="data/meld/cache", type=Path)
     parser.add_argument("--n-samples", default=30, type=int)
     parser.add_argument("--seed", default=0, type=int)
+    parser.add_argument("--splits", nargs="+", default=list(SPLITS))
     args = parser.parse_args()
+    splits = tuple(args.splits)
 
-    check_counts_and_overlap(args.processed_dir, args.cache_dir)
-    sample_and_recompute(args.processed_dir, args.cache_dir, args.n_samples, args.seed)
+    check_counts_and_overlap(args.processed_dir, args.cache_dir, splits)
+    sample_and_recompute(args.processed_dir, args.cache_dir, args.n_samples, args.seed, splits)
 
 
 if __name__ == "__main__":

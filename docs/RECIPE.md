@@ -176,6 +176,50 @@ it alone; per-seed detail is preserved in
 artifacts) vs. `outputs/speaker_only_seed{42,1337,2024}/` (post-amendment,
 current).
 
+## IEMOCAP — label protocol decision (Phase N5-B, Step B2)
+
+**Decided: 6-class** {angry, happy, excited, sad, neutral, frustrated}
+(codes {ang, hap, exc, sad, neu, fru}), over the 4-class alternative
+{angry, happy+excited, sad, neutral}. Decided against
+`docs/iemocap_inventory.md`'s counts (Step B1, `outputs/iemocap_inventory_data.json`),
+reproduced here as the evidentiary record:
+
+| session | 6-class kept | 4-class kept | total in session |
+|---|---|---|---|
+| Session1 | 1365 | 1085 | 1819 |
+| Session2 | 1348 | 1023 | 1811 |
+| Session3 | 1533 | 1151 | 2136 |
+| Session4 (val) | 1512 | 1031 | 2103 |
+| Session5 (test) | **1622** | **1241** | 2170 |
+| **total** | **7380** | **5531** | **10039** |
+
+**Rationale:**
+1. **Maximal test power for the pre-registered paired comparison**
+   (`docs/PHASE_N5B.md`'s relational-memory hypothesis) — 1,622 test
+   utterances under 6-class vs. 1,241 under 4-class, a ~31% larger test
+   set for the same paired per-dialogue/per-seed comparison the rest of
+   this project's attribution design depends on.
+2. **Standard protocol of the multimodal ERC literature this project
+   engages** (the 6-class split is the more common direct comparison
+   point for papers building on IEMOCAP alongside MELD-style multimodal
+   fusion work, vs. 4-class's slightly different, coarser convention).
+3. **Retention of `frustrated`** — IEMOCAP's largest class by count
+   (1,849 kept utterances, `docs/iemocap_inventory.md` section 2) and, per
+   the corpus's own annotation design, the class most tied to
+   interactional/dialogue history (a speaker becomes frustrated over the
+   course of an exchange, not from a single isolated utterance) — the
+   fairest single class on which to test the relational-memory
+   hypothesis specifically, since `docs/PHASE_N5B.md`'s pre-registered
+   claim is that relational memory should matter MORE on IEMOCAP,
+   *driven by dialogue length/history* being more available to model.
+   Dropping `frustrated` (as 4-class does) would remove the class most
+   likely to show that effect before the experiment even runs.
+
+**Split (per B1/B2 instructions, stated here as the locked convention):**
+Session5 = test, Session4 = val, Sessions 1-3 = train. Fixed by session
+assignment, not tuned — same "declare the split before looking at
+results" discipline as MELD's train/dev/test.
+
 ### Early-stop / checkpoint-selection metric — audited, NOT changed
 
 The gate-failure investigation's Step 2 explicitly tested whether

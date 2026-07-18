@@ -1,0 +1,39 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/197 [00:00<?, ?it/s]Loading weights: 100%|██████████| 197/197 [00:00<00:00, 7523.18it/s]
+[transformers] [1mRobertaModel LOAD REPORT[0m from: roberta-base
+Key                       | Status     |  | 
+--------------------------+------------+--+-
+lm_head.layer_norm.bias   | UNEXPECTED |  | 
+lm_head.dense.weight      | UNEXPECTED |  | 
+lm_head.layer_norm.weight | UNEXPECTED |  | 
+lm_head.dense.bias        | UNEXPECTED |  | 
+lm_head.bias              | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+/home/devops/socialarcnet-v2/.venv/lib/python3.11/site-packages/torch/autograd/graph.py:869: UserWarning: Memory Efficient attention defaults to a non-deterministic algorithm. To explicitly enable determinism call torch.use_deterministic_algorithms(True, warn_only=False). (Triggered internally at /pytorch/aten/src/ATen/native/transformers/cuda/attention_backward.cu:900.)
+  return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+[epoch 000] loss=1.7048 val_weighted_f1=0.4694 val_macro_f1=0.4135 time=5.7s lr=2.00e-04
+    raw       per_class_f1={'angry': 0.381, 'happy': 0.0, 'excited': 0.548, 'sad': 0.645, 'neutral': 0.331, 'frustrated': 0.576}
+    tau=1 adj per_class_f1={'angry': 0.504, 'happy': 0.021, 'excited': 0.599, 'sad': 0.681, 'neutral': 0.249, 'frustrated': 0.522} (adj_weighted_f1=0.4773 adj_macro_f1=0.4294)
+[epoch 001] loss=1.1669 val_weighted_f1=0.5295 val_macro_f1=0.4960 time=5.3s lr=1.78e-04
+    raw       per_class_f1={'angry': 0.482, 'happy': 0.216, 'excited': 0.643, 'sad': 0.686, 'neutral': 0.353, 'frustrated': 0.596}
+    tau=1 adj per_class_f1={'angry': 0.536, 'happy': 0.263, 'excited': 0.626, 'sad': 0.696, 'neutral': 0.293, 'frustrated': 0.573} (adj_weighted_f1=0.5238 adj_macro_f1=0.4978)
+[epoch 002] loss=0.9996 val_weighted_f1=0.5133 val_macro_f1=0.4856 time=5.2s lr=1.56e-04
+    raw       per_class_f1={'angry': 0.527, 'happy': 0.264, 'excited': 0.565, 'sad': 0.632, 'neutral': 0.375, 'frustrated': 0.551}
+    tau=1 adj per_class_f1={'angry': 0.563, 'happy': 0.308, 'excited': 0.547, 'sad': 0.633, 'neutral': 0.322, 'frustrated': 0.456} (adj_weighted_f1=0.4809 adj_macro_f1=0.4714)
+[epoch 003] loss=0.9325 val_weighted_f1=0.5322 val_macro_f1=0.5220 time=5.2s lr=1.33e-04
+    raw       per_class_f1={'angry': 0.575, 'happy': 0.366, 'excited': 0.554, 'sad': 0.687, 'neutral': 0.425, 'frustrated': 0.527}
+    tau=1 adj per_class_f1={'angry': 0.567, 'happy': 0.328, 'excited': 0.532, 'sad': 0.716, 'neutral': 0.37, 'frustrated': 0.425} (adj_weighted_f1=0.4867 adj_macro_f1=0.4898)
+[epoch 004] loss=0.8830 val_weighted_f1=0.5357 val_macro_f1=0.5080 time=5.2s lr=1.11e-04
+    raw       per_class_f1={'angry': 0.546, 'happy': 0.284, 'excited': 0.546, 'sad': 0.687, 'neutral': 0.4, 'frustrated': 0.586}
+    tau=1 adj per_class_f1={'angry': 0.577, 'happy': 0.321, 'excited': 0.532, 'sad': 0.71, 'neutral': 0.348, 'frustrated': 0.544} (adj_weighted_f1=0.5219 adj_macro_f1=0.5054)
+[epoch 005] loss=0.8532 val_weighted_f1=0.5327 val_macro_f1=0.5157 time=5.3s lr=8.89e-05
+    raw       per_class_f1={'angry': 0.556, 'happy': 0.353, 'excited': 0.562, 'sad': 0.682, 'neutral': 0.374, 'frustrated': 0.567}
+    tau=1 adj per_class_f1={'angry': 0.577, 'happy': 0.367, 'excited': 0.538, 'sad': 0.709, 'neutral': 0.345, 'frustrated': 0.511} (adj_weighted_f1=0.5136 adj_macro_f1=0.5077)
+[epoch 006] loss=0.8098 val_weighted_f1=0.5257 val_macro_f1=0.5149 time=5.2s lr=6.67e-05
+    raw       per_class_f1={'angry': 0.535, 'happy': 0.378, 'excited': 0.542, 'sad': 0.695, 'neutral': 0.38, 'frustrated': 0.559}
+    tau=1 adj per_class_f1={'angry': 0.583, 'happy': 0.364, 'excited': 0.53, 'sad': 0.692, 'neutral': 0.359, 'frustrated': 0.526} (adj_weighted_f1=0.5195 adj_macro_f1=0.5093)
+[trainer] early stopping at epoch 6 (patience=3)
+[done] run_name=iemocap_text_anchor_seed42 loss=ce test_weighted_f1=0.5815 test_macro_f1=0.5729 test_accuracy=0.5783 all_6_classes_nonzero=True best_epoch=3 avg_epoch_time_sec=5.30
+[done] posthoc_candidate_tau_eval=None test_posthoc_adjusted_result=None

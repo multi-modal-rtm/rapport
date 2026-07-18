@@ -1,0 +1,17 @@
+[preprocess_iemocap] session=Session1: 28 dialogues
+[preprocess_iemocap] session=Session2: 30 dialogues
+[preprocess_iemocap] session=Session3: 32 dialogues
+[preprocess_iemocap] session=Session4: 30 dialogues
+[preprocess_iemocap] session=Session5: 31 dialogues
+[preprocess_iemocap] 20/151 dialogues processed, 835 utterances kept so far
+[preprocess_iemocap] 40/151 dialogues processed, 1772 utterances kept so far
+[preprocess_iemocap] 60/151 dialogues processed, 2680 utterances kept so far
+[preprocess_iemocap] 80/151 dialogues processed, 3609 utterances kept so far
+[preprocess_iemocap] 100/151 dialogues processed, 4638 utterances kept so far
+[preprocess_iemocap] 120/151 dialogues processed, 5682 utterances kept so far
+[preprocess_iemocap] 140/151 dialogues processed, 6746 utterances kept so far
+[preprocess_iemocap] 151/151 dialogues processed, 7380 utterances kept so far
+[preprocess_iemocap] wrote /home/devops/socialarcnet-v2/data/iemocap/processed/test.parquet (1622 rows, 31 dialogues)
+[preprocess_iemocap] wrote /home/devops/socialarcnet-v2/data/iemocap/processed/train.parquet (4246 rows, 90 dialogues)
+[preprocess_iemocap] wrote /home/devops/socialarcnet-v2/data/iemocap/processed/val.parquet (1512 rows, 30 dialogues)
+[preprocess_iemocap] done. total kept utterances=7380, bad dialogues=0

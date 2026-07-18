@@ -1,0 +1,59 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+[build_feature_cache] device=cuda
+[build_feature_cache] loading backbones...
+Loading weights:   0%|          | 0/211 [00:00<?, ?it/s]Loading weights: 100%|██████████| 211/211 [00:00<00:00, 20664.97it/s]
+[transformers] [1mWav2Vec2Model LOAD REPORT[0m from: facebook/wav2vec2-base
+Key                          | Status     |  | 
+-----------------------------+------------+--+-
+quantizer.codevectors        | UNEXPECTED |  | 
+project_q.bias               | UNEXPECTED |  | 
+project_hid.bias             | UNEXPECTED |  | 
+project_hid.weight           | UNEXPECTED |  | 
+project_q.weight             | UNEXPECTED |  | 
+quantizer.weight_proj.bias   | UNEXPECTED |  | 
+quantizer.weight_proj.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+Loading weights:   0%|          | 0/197 [00:00<?, ?it/s]Loading weights: 100%|██████████| 197/197 [00:00<00:00, 7558.96it/s]
+[transformers] [1mRobertaModel LOAD REPORT[0m from: roberta-base
+Key                       | Status     |  | 
+--------------------------+------------+--+-
+lm_head.layer_norm.bias   | UNEXPECTED |  | 
+lm_head.bias              | UNEXPECTED |  | 
+lm_head.layer_norm.weight | UNEXPECTED |  | 
+lm_head.dense.weight      | UNEXPECTED |  | 
+lm_head.dense.bias        | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+[build_feature_cache] split=train utterances=4246 already_cached=0 remaining=4246
+[build_feature_cache] train audio: 1000/4246 (6.4s elapsed)
+[build_feature_cache] train audio: 2000/4246 (12.2s elapsed)
+[build_feature_cache] train audio: 3000/4246 (17.8s elapsed)
+[build_feature_cache] train audio: 4000/4246 (23.4s elapsed)
+[build_feature_cache] train audio: 4246/4246 (24.8s elapsed)
+[build_feature_cache] train video/text: 640/4246 (33.8s elapsed)
+[build_feature_cache] train video/text: 1280/4246 (42.7s elapsed)
+[build_feature_cache] train video/text: 1920/4246 (51.8s elapsed)
+[build_feature_cache] train video/text: 2560/4246 (61.0s elapsed)
+[build_feature_cache] train video/text: 3200/4246 (69.9s elapsed)
+[build_feature_cache] train video/text: 3840/4246 (79.0s elapsed)
+[build_feature_cache] train video/text: 4246/4246 (84.8s elapsed)
+[build_feature_cache] split=train done in 84.8s
+[build_feature_cache] split=val utterances=1512 already_cached=0 remaining=1512
+[build_feature_cache] val audio: 1000/1512 (5.4s elapsed)
+[build_feature_cache] val audio: 1512/1512 (8.2s elapsed)
+[build_feature_cache] val video/text: 640/1512 (17.4s elapsed)
+[build_feature_cache] val video/text: 1280/1512 (26.6s elapsed)
+[build_feature_cache] val video/text: 1512/1512 (30.0s elapsed)
+[build_feature_cache] split=val done in 30.0s
+[build_feature_cache] split=test utterances=1622 already_cached=0 remaining=1622
+[build_feature_cache] test audio: 1000/1622 (5.3s elapsed)
+[build_feature_cache] test audio: 1622/1622 (8.6s elapsed)
+[build_feature_cache] test video/text: 640/1622 (17.7s elapsed)
+[build_feature_cache] test video/text: 1280/1622 (27.0s elapsed)
+[build_feature_cache] test video/text: 1622/1622 (32.0s elapsed)
+[build_feature_cache] split=test done in 32.0s
+[build_feature_cache] wrote data/iemocap/cache/manifest.json: {'cache_version': 4, 'built_at': '2026-07-18T20:53:50.764298+00:00', 'splits': ['train', 'val', 'test'], 'pooling': {'video': 'mean_patch_tokens', 'audio': 'masked_mean_unbatched', 'text': 'masked_mean_second_to_last_layer'}}
+[build_feature_cache] all splits complete.
