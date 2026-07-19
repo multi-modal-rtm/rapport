@@ -6,6 +6,13 @@
 # Choose (a) if IEMOCAP is also null; (b) if IEMOCAP rescues relational memory.
 # Target: IEEE TAFFC or Information Fusion if (a); Neurocomputing viable if (b).
 # All venues: no APC on subscription route.
+#
+# PROVENANCE NOTE: this file did not exist in the repo at the time the B3
+# title decision was made. Title rule applied from its verbatim
+# restatement in the B3 instruction (see commit 38eaab2) prior to this
+# file's commit. Branch (a) fired (IEMOCAP null); see docs/PHASE_N5B.md
+# Step B5.3 and docs/PATIENCE_AUDIT.md for the underlying result and its
+# recipe-consistency audit.
 
 ## Abstract (two variants, finalize after N5-B)
 
