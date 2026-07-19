@@ -60,12 +60,17 @@ JSON (re-running live inference) needs the checkpoints.
 
 Executed exactly the Tier 1 sequence above against a genuine
 `git clone` of this repository into a scratch directory (not the working
-tree this doc was written in), on this machine. Result: `uv sync`
-succeeded, `pytest` passed (98 passed, 1 xfailed — same count as the
-working tree), `regenerate_all_tables.py` produced all 8 `.tex` files
-byte-identical to the working tree's `paper_assets/tables/`, and all four
-figure-generation scripts ran without error. See the commit this file
-ships in for the exact log.
+tree this doc was written in), **after** committing this phase's changes,
+on this machine. Result: `uv sync` succeeded; `pytest` reported **83
+passed, 15 skipped, 1 xfailed** — fewer passes than the working tree's 98,
+because 15 tests are correctly guarded to skip when `data/` (the full
+MELD/IEMOCAP feature caches, not archived — see "What's NOT included"
+below) is absent, which is the honest, expected result for a
+`metrics.json`-only archive, not a failure; `regenerate_all_tables.py`
+produced all 8 `.tex` files byte-identical to the working tree's
+`paper_assets/tables/` (`diff -rq`, zero output); all four
+non-checkpoint-dependent figure-generation scripts ran without error and
+reproduced their outputs.
 
 ## Hardware / wall-clock notes (Tier 3, for context — not reproduced here)
 
