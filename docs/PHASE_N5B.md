@@ -1,8 +1,8 @@
 # PHASE N5-B — IEMOCAP: the relational hypothesis's fair trial
 
-**STATUS: UNBLOCKED, text anchor built and GATE PASSED** (Steps B1-B4
-complete as of this doc; relational-memory matrix -- Step B5, the actual
-test of the pre-registered hypothesis below -- not yet run).
+**STATUS: PRE-REGISTERED TRIAL COMPLETE. Hypothesis REFUTED; title
+decision rule fires branch (a) (boundary/attribution paper).** All of
+B1-B5 done. No further runs, no tuning, no re-scoring planned.
 
 ## Original blocker (historical record, resolved)
 
@@ -188,23 +188,191 @@ job is to establish that IEMOCAP text alone is TRAINABLE and STABLE under
 this project's own fixed-split convention (the gate above), not to claim
 a literature-competitive score under a different protocol.
 
-## What's needed for Step B5 (not run in this pass)
+## Step B5 — THE PRE-REGISTERED TRIAL
 
-1. A/V caches: **done** (see above).
-2. Text anchor: **done** (see above), frozen checkpoint =
-   `outputs/iemocap_text_anchor_seed42/best_model.pt` (matching the
-   MELD Phase T convention of freezing the seed-42 run as the project's
-   text encoder for downstream fusion configs).
-3. Cache this text anchor's own pooled embeddings + classifier logits
-   (mirroring `scripts/build_text_ctx_cache.py`'s role for Phase T) --
-   not yet built.
-4. The residual matrix `{base_fusion_R, full_R, minus_relational_R} x 3
-   seeds`, then the pre-registered hypothesis comparison above.
-5. The single dyadic edge-state norm over time for 3 sample sessions
-   (qualitative figure candidate), once relational memory is running on
-   real IEMOCAP dialogues.
+### B5.0 — contextual text foundation
 
-**Nothing on the pre-registered hypothesis itself has run yet** -- B5 is
-future work, not covered by this doc's GATE PASSED status (which applies
-only to the text anchor's own stability, a precondition for B5, not the
-hypothesis test itself).
+`outputs/iemocap_text_anchor_seed42/best_model.pt` (Step B4) frozen as the
+encoder. `scripts/build_text_ctx_cache_iemocap.py` caches its pooled
+contextual embeddings + own classifier logits
+(`data/iemocap/cache/text_ctx_iemocap{,_logits}`, `cache_version
+text_ctx_iemocap_v1`) for every utterance, all splits.
+**Process-independence check** (`scripts/verify_text_ctx_cache_iemocap.py`,
+20 samples recomputed live in a fresh process): overall max_abs_diff
+0.000010, **PASS**.
+
+**Scoring convention for all of B5:** RAW logits throughout, no post-hoc
+adjustment on any config -- this is the frozen "no adjustment" decision
+from B4 (no tau candidate qualified under the locked selection rule),
+applied identically to every config in this phase rather than re-litigated
+per config.
+
+**Equality-at-init pre-flight** (`tests/test_rapport_model_residual.py::
+test_residual_equals_iemocap_text_ctx_logits_on_real_cache`), REQUIRED to
+pass before any training run launches: verified on real cached data for
+all three configs the matrix actually trains (`base_fusion_R`, `full_R`,
+`minus_relational_R`) -- **3/3 PASSED**, confirmed before `scripts/
+run_iemocap_residual_matrix.py` was launched.
+
+### B5.1 — the residual matrix
+
+`scripts/run_iemocap_residual_matrix.py`: `{base_fusion_R, full_R,
+minus_relational_R} x seeds {42, 1337, 2024}` = 9 runs, identical
+apparatus to MELD (`scripts/train_rapport_iemocap.py`, a parallel copy of
+`scripts/train_rapport.py` -- that script itself untouched -- repointed at
+`data/iemocap/{processed,cache}` and the 6-class label set; RECIPE.md-
+locked GNN hyperparameters unchanged: AdamW lr=1e-4, dropout=0.5, cosine
+annealing, batch=16, grad_clip=1.0, max 100 epochs, early-stop patience 10
+on val macro F1). All 9 runs completed (idempotent, `nohup`), sentinel file
+`outputs/iemocap_residual_matrix_DONE.sentinel` written on completion.
+**Monitoring fix applied**: the watcher process polled for the sentinel/
+runner-PID at a fixed interval and exited on its own once the campaign
+finished -- no unbounded `tail -f`. Confirmed zero background shells
+remained after the campaign (`ps aux` clean).
+
+One data-integrity check performed before trusting the results: `full_R_
+iemocap`'s seed 42 and seed 2024 runs produced IDENTICAL per-class test F1
+to full precision. Verified directly (not assumed) this is NOT a caching/
+skip bug -- the two checkpoints are genuinely different files (distinct
+sha256, distinct timestamps, distinct `best_epoch`/`num_epochs_run`), and
+a direct recompute of both checkpoints' raw test logits confirms the
+logits themselves DIFFER (max abs diff 0.0213) while their **argmax
+predictions are identical for every test utterance**. Both seeds early-
+stopped extremely early (`best_epoch=1`, ~12 total epochs), so the learned
+residual correction on top of the frozen, already-strong anchor logits is
+small enough that it happens not to flip any decision differently between
+the two seeds -- a genuine (if coincidental-looking), reportable
+characteristic of how little full_R actually trains beyond its
+zero-initialized starting point on this corpus, not a bug.
+
+### B5.2 — dyadic qualitative artifact
+
+`scripts/iemocap_edge_state_trajectory.py`: `full_R_iemocap_seed42`'s
+single edge state (IEMOCAP dialogues are strictly dyadic -- exactly one
+pair per dialogue), logged via a non-invasive monkeypatch of
+`RelationalEdgeMemory.update_incident_edges` (no model source touched)
+across the 3 longest Session5 (test) dialogues, picked by length alone
+before looking at any edge-norm values.
+
+![edge state trajectory](iemocap_edge_state_trajectory.png)
+
+All three dialogues show the same qualitative shape: the edge norm rises
+sharply from ~0.9-1.1 over the first ~10 turns as the pair's relationship
+state initializes, then plateaus and fluctuates mildly (roughly 2.2-3.1)
+for the remainder of the dialogue -- the relational memory IS forming a
+persistent, nontrivial per-dyad state over time (it isn't collapsing to
+zero or diverging), independent of whether that state turns out to help
+classification (B5.3 below).
+
+### B5.3 — THE DECISIVE TABLE
+
+**(a) IEMOCAP paired per-seed gains** (raw test weighted F1; std is
+sample stdev, n=3):
+
+| gain | seed 42 | seed 1337 | seed 2024 | mean ± std |
+|---|---|---|---|---|
+| full_R − text anchor | +0.0066 | −0.0106 | +0.0263 | **+0.0074 ± 0.0185** |
+| full_R − minus_relational_R (relational's isolated contribution) | −0.0503 | −0.0493 | −0.0006 | **−0.0334 ± 0.0284** |
+
+Appendix (raw test weighted F1 per config/seed):
+
+| config | seed 42 | seed 1337 | seed 2024 |
+|---|---|---|---|
+| text anchor | 0.5815 | 0.5939 | 0.5618 |
+| base_fusion_R | 0.5970 | 0.6492 | 0.6436 |
+| minus_relational_R | 0.6383 | 0.6326 | 0.5887 |
+| full_R | 0.5881 | 0.5832 | 0.5881 |
+
+**(b) The cross-corpus contrast** (same two paired gains, same apparatus,
+MELD at its locked k=8 recipe, from N4-R/N5-A artifacts -- `outputs/
+{context_text_plain_ce,base_fusion_R,minus_relational_R,full_R}_seed{42,1337,2024}`):
+
+| gain | IEMOCAP mean ± std | MELD mean ± std |
+|---|---|---|
+| full_R − text anchor | +0.0074 ± 0.0185 | −0.0060 ± 0.0098 |
+| full_R − minus_relational_R | **−0.0334 ± 0.0284** | **−0.0022 ± 0.0086** |
+
+Relational memory's isolated contribution is negative on BOTH corpora,
+and more negative on IEMOCAP than on MELD -- the opposite direction from
+the pre-registered prediction (which required IEMOCAP's delta to be
+LARGER, i.e. more positive/less negative, than MELD's).
+
+**(c) Per-class table** (mean test F1 across 3 seeds; `frustrated` is the
+pre-registered best-case class for relational signal -- **highlighted**):
+
+| class | text anchor | base_fusion_R | minus_relational_R | full_R |
+|---|---|---|---|---|
+| angry | 0.516 | 0.575 | 0.588 | 0.511 |
+| happy | 0.397 | 0.481 | 0.430 | 0.458 |
+| excited | 0.580 | 0.641 | 0.599 | 0.552 |
+| sad | 0.758 | 0.792 | 0.779 | 0.778 |
+| neutral | 0.592 | 0.613 | 0.629 | 0.597 |
+| **frustrated** | **0.547** | **0.615** | **0.610** | **0.561** |
+
+`frustrated` shows the SAME pattern as the aggregate: `full_R` (0.561) is
+BELOW `minus_relational_R` (0.610) -- relational memory does not help even
+on the one class pre-registered as its fairest test. `full_R` is also
+below `base_fusion_R` (0.615) on `frustrated`, and below or roughly level
+with `base_fusion_R` on 5 of 6 classes overall.
+
+**Shift F1** (auxiliary task, `full_R`/`minus_relational_R` only --
+`base_fusion_R` has no shift head, `text anchor` doesn't predict shift):
+
+| config | IEMOCAP mean shift F1 | MELD mean shift F1 |
+|---|---|---|
+| minus_relational_R | 0.3365 | 0.6384 |
+| full_R | **0.4147** | **0.6682** |
+
+Noted for completeness, does not change the verdict below (which is
+defined on the primary emotion-classification metric, matching the
+pre-registered hypothesis's own wording): relational memory's isolated
+effect on the AUXILIARY shift-detection task is POSITIVE on both corpora
+(+0.078 IEMOCAP, +0.030 MELD) even while its effect on the PRIMARY emotion
+task is negative on both -- the graph is learning something about
+emotion-shift timing, just not something that improves the emotion label
+itself.
+
+**(d) Pre-registered hypothesis, quoted verbatim** (`docs/PHASE_N5B.md`,
+commit `04d9267`, predates any IEMOCAP result):
+
+> Pre-registered hypothesis (stated here, before any IEMOCAP result
+> exists, so it can't be fitted after the fact): **relational memory's
+> delta on IEMOCAP > its delta on MELD, driven by dialogue length**
+> (IEMOCAP dialogues run substantially longer than MELD's, which should
+> give graph-level relationship state more room to matter than MELD's
+> `docs/PHASE_N4R.md`/`docs/PHASE_N5A.md` results showed).
+
+**REFUTED.** Relational memory's delta (full_R − minus_relational_R) is
+**−0.0334 on IEMOCAP vs. −0.0022 on MELD**. IEMOCAP's delta is not
+greater than MELD's -- it is smaller (more negative), the opposite of the
+predicted direction. Longer IEMOCAP dialogues did not give the graph more
+room to help; if anything the graph does proportionally MORE damage on
+the corpus with longer dialogues, not less.
+
+**(e) Title decision rule.** Note: `docs/PAPER_SKELETON.md` does not exist
+in this repository (checked the current tree and the full git history --
+absent throughout). Applying the rule exactly as restated verbatim in
+this phase's own instructions, since it is fully self-contained there:
+*"relational paired gain (full_R minus minus_relational_R) positive AND >
+1 std -> branch (b), RAPPORT-conditional paper; otherwise -> branch (a),
+boundary/attribution paper."*
+
+IEMOCAP's relational paired gain is **−0.0334 ± 0.0284** -- negative, so
+the "positive AND > 1 std" condition fails outright (it is neither
+positive nor, being negative, meaningfully evaluated against the std
+threshold in the direction the rule cares about).
+
+**BRANCH (a) FIRES: the boundary/attribution paper.**
+
+## Summary
+
+Both pre-registered decision points -- the hypothesis test (d) and the
+title branch rule (e) -- point the same direction. The relational-memory
+component does not earn its keep on IEMOCAP any more than it did on MELD
+(docs/PHASE_N4R.md, docs/PHASE_N5A.md, the BRIDGING EXPERIMENT); if
+anything it costs slightly more on the corpus that was supposed to be its
+best case. Longer dialogues, more speaker-history opportunity, and a
+class (`frustrated`) explicitly chosen as the fairest ground for the
+mechanism did not change that outcome. This is a clean, unhedged null
+across two corpora under matched attribution methodology -- exactly the
+kind of result the boundary/attribution framing is for.
