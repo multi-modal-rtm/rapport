@@ -1,0 +1,19 @@
+\begin{table}[t]
+\centering
+\caption{Per-class test F1 (mean of 3 seeds), MELD. Rare classes in \textbf{bold}.}
+\label{tab:per-class-meld}
+\begin{tabular}{lcccc}
+\toprule
+class & context\_text\_plain\_ce & base\_fusion\_R & minus\_relational\_R & full\_R \\
+\midrule
+neutral & 0.799 & 0.800 & 0.797 & 0.793 \\
+joy & 0.613 & 0.613 & 0.610 & 0.607 \\
+sadness & 0.380 & 0.357 & 0.367 & 0.369 \\
+anger & 0.475 & 0.485 & 0.476 & 0.480 \\
+surprise & 0.570 & 0.562 & 0.563 & 0.558 \\
+\textbf{fear} & 0.129 & 0.074 & 0.082 & 0.079 \\
+\textbf{disgust} & 0.166 & 0.198 & 0.188 & 0.179 \\
+\bottomrule
+\end{tabular}
+\par\footnotesize Source: outputs/\{context_text_plain_ce,base_fusion_R,minus_relational_R,full_R\}\_seed*/metrics.json ('test\_per\_class\_f1').
+\end{table}

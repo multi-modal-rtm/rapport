@@ -1,0 +1,36 @@
+{
+  "metric": "weighted_f1",
+  "note": "both columns are weighted F1; 'balanced' = class_weight='balanced' at TRAIN time, not a different eval metric",
+  "rows": [
+    {
+      "name": "all-neutral (constant)",
+      "unbalanced_weighted_f1": 0.3126849060381001,
+      "balanced_weighted_f1": 0.3126849060381001
+    },
+    {
+      "name": "random-stratified",
+      "unbalanced_weighted_f1": 0.29136522264733505,
+      "balanced_weighted_f1": 0.29136522264733505
+    },
+    {
+      "name": "video",
+      "unbalanced_weighted_f1": 0.3349003854300394,
+      "balanced_weighted_f1": 0.19307342622646864
+    },
+    {
+      "name": "audio",
+      "unbalanced_weighted_f1": 0.41105737028244377,
+      "balanced_weighted_f1": 0.29714652992198665
+    },
+    {
+      "name": "text",
+      "unbalanced_weighted_f1": 0.5274413344843271,
+      "balanced_weighted_f1": 0.42766287157254834
+    },
+    {
+      "name": "concat",
+      "unbalanced_weighted_f1": 0.5249765865230874,
+      "balanced_weighted_f1": 0.4604095374417771
+    }
+  ]
+}

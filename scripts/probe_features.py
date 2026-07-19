@@ -13,6 +13,7 @@ column.
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 import numpy as np
@@ -54,6 +55,7 @@ def main() -> None:
     parser.add_argument("--processed-dir", default="data/meld/processed", type=Path)
     parser.add_argument("--cache-dir", default="data/meld/cache", type=Path)
     parser.add_argument("--max-iter", default=2000, type=int)
+    parser.add_argument("--out-json", default=None, type=Path, help="Write the summary rows to this JSON path (for paper-table regeneration).")
     args = parser.parse_args()
 
     print("[probe] loading train features...")
@@ -93,6 +95,19 @@ def main() -> None:
     for name, wf1_u, wf1_b in rows:
         print(f"{name:<24} {wf1_u:>12.4f} {wf1_b:>12.4f}")
     print("\n[probe] per sign-off: use the UNBALANCED column for all cross-run comparisons.")
+
+    if args.out_json is not None:
+        # NOTE on column semantics (both columns are WEIGHTED F1; "balanced"
+        # describes the classifier's class_weight="balanced" TRAINING
+        # setting, not a different evaluation metric -- see probe()).
+        payload = {
+            "metric": "weighted_f1",
+            "note": "both columns are weighted F1; 'balanced' = class_weight='balanced' at TRAIN time, not a different eval metric",
+            "rows": [{"name": name, "unbalanced_weighted_f1": wf1_u, "balanced_weighted_f1": wf1_b} for name, wf1_u, wf1_b in rows],
+        }
+        args.out_json.parent.mkdir(parents=True, exist_ok=True)
+        args.out_json.write_text(json.dumps(payload, indent=2))
+        print(f"[probe] wrote {args.out_json}")
 
 
 if __name__ == "__main__":

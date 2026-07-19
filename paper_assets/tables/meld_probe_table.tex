@@ -1,0 +1,18 @@
+\begin{table}[t]
+\centering
+\caption{MELD frozen-feature linear probes (weighted F1). ``Balanced'' trains with \texttt{class\_weight=`balanced'}; both columns report weighted F1 (not a different metric).}
+\label{tab:meld-probe}
+\begin{tabular}{lcc}
+\toprule
+row & unbalanced & balanced \\
+\midrule
+all-neutral (constant) & 0.3127 & 0.3127 \\
+random-stratified & 0.2914 & 0.2914 \\
+video & 0.3349 & 0.1931 \\
+audio & 0.4111 & 0.2971 \\
+text & 0.5274 & 0.4277 \\
+concat & 0.5250 & 0.4604 \\
+\bottomrule
+\end{tabular}
+\par\footnotesize Source: outputs/meld\_probe\_table.json (scripts/probe\_features.py). Metric: weighted_f1.
+\end{table}

@@ -1,0 +1,299 @@
+{
+  "classification_report": {
+    "neutral": {
+      "precision": 0.7544107268877911,
+      "recall": 0.8511146496815286,
+      "f1-score": 0.799850355405911,
+      "support": 1256.0
+    },
+    "joy": {
+      "precision": 0.6077481840193705,
+      "recall": 0.6243781094527363,
+      "f1-score": 0.6159509202453988,
+      "support": 402.0
+    },
+    "sadness": {
+      "precision": 0.5172413793103449,
+      "recall": 0.28846153846153844,
+      "f1-score": 0.37037037037037035,
+      "support": 208.0
+    },
+    "anger": {
+      "precision": 0.519163763066202,
+      "recall": 0.4318840579710145,
+      "f1-score": 0.47151898734177217,
+      "support": 345.0
+    },
+    "surprise": {
+      "precision": 0.5226586102719033,
+      "recall": 0.6156583629893239,
+      "f1-score": 0.565359477124183,
+      "support": 281.0
+    },
+    "fear": {
+      "precision": 0.13333333333333333,
+      "recall": 0.04,
+      "f1-score": 0.06153846153846154,
+      "support": 50.0
+    },
+    "disgust": {
+      "precision": 0.2903225806451613,
+      "recall": 0.1323529411764706,
+      "f1-score": 0.18181818181818182,
+      "support": 68.0
+    },
+    "accuracy": 0.6563218390804598,
+    "macro avg": {
+      "precision": 0.47783979679058664,
+      "recall": 0.4262642371046588,
+      "f1-score": 0.43805810769203973,
+      "support": 2610.0
+    },
+    "weighted avg": {
+      "precision": 0.632884298750263,
+      "recall": 0.6563218390804598,
+      "f1-score": 0.6384068875520603,
+      "support": 2610.0
+    }
+  },
+  "seed": 2024,
+  "relational": true,
+  "shift": true,
+  "temporal": true,
+  "residual": true,
+  "test_weighted_f1": 0.6384068875520603,
+  "test_macro_f1": 0.43805810769203973,
+  "test_shift_f1": 0.6739752144899904,
+  "test_accuracy": 0.6563218390804598,
+  "test_per_class_f1": {
+    "neutral": 0.799850355405911,
+    "joy": 0.6159509202453988,
+    "sadness": 0.37037037037037035,
+    "anger": 0.47151898734177217,
+    "surprise": 0.565359477124183,
+    "fear": 0.06153846153846154,
+    "disgust": 0.18181818181818182
+  },
+  "test_posthoc_adjusted_result": {
+    "tau_eval": 0.25,
+    "weighted_f1": 0.637086038537303,
+    "macro_f1": 0.4512756334139847,
+    "per_class_f1": {
+      "neutral": 0.7953307392996108,
+      "joy": 0.6082725060827251,
+      "sadness": 0.3817663817663818,
+      "anger": 0.4682170542635659,
+      "surprise": 0.5620094191522763,
+      "fear": 0.16,
+      "disgust": 0.18333333333333332
+    },
+    "all_classes_nonzero": true
+  },
+  "best_val_macro_f1": 0.4522908678704451,
+  "best_epoch": 0,
+  "num_epochs_run": 11,
+  "epoch_times_sec": [
+    24.285089254379272,
+    24.557689428329468,
+    24.156264066696167,
+    23.97502636909485,
+    24.787123441696167,
+    24.004666566848755,
+    24.615748405456543,
+    24.34039330482483,
+    24.390104293823242,
+    24.569416522979736,
+    24.32905077934265
+  ],
+  "avg_epoch_time_sec": 24.364597493951972,
+  "history": [
+    {
+      "epoch": 0,
+      "train_loss": 1.1480129893009479,
+      "val_weighted_f1": 0.6020134153804808,
+      "val_macro_f1": 0.4522908678704451,
+      "val_shift_f1": 0.6681564245810055,
+      "val_per_class_f1": {
+        "neutral": 0.765,
+        "joy": 0.569,
+        "sadness": 0.385,
+        "anger": 0.452,
+        "surprise": 0.62,
+        "fear": 0.125,
+        "disgust": 0.25
+      },
+      "epoch_time_sec": 24.285089254379272
+    },
+    {
+      "epoch": 1,
+      "train_loss": 1.1254037132629982,
+      "val_weighted_f1": 0.5998081765495639,
+      "val_macro_f1": 0.4435477490641225,
+      "val_shift_f1": 0.5659863945578232,
+      "val_per_class_f1": {
+        "neutral": 0.764,
+        "joy": 0.569,
+        "sadness": 0.385,
+        "anger": 0.447,
+        "surprise": 0.622,
+        "fear": 0.125,
+        "disgust": 0.194
+      },
+      "epoch_time_sec": 24.557689428329468
+    },
+    {
+      "epoch": 2,
+      "train_loss": 1.108702660523928,
+      "val_weighted_f1": 0.5999942982991939,
+      "val_macro_f1": 0.4435474811551249,
+      "val_shift_f1": 0.6767295597484276,
+      "val_per_class_f1": {
+        "neutral": 0.765,
+        "joy": 0.568,
+        "sadness": 0.385,
+        "anger": 0.441,
+        "surprise": 0.628,
+        "fear": 0.125,
+        "disgust": 0.194
+      },
+      "epoch_time_sec": 24.156264066696167
+    },
+    {
+      "epoch": 3,
+      "train_loss": 1.085917252760667,
+      "val_weighted_f1": 0.6040650167273534,
+      "val_macro_f1": 0.4472481188264066,
+      "val_shift_f1": 0.6997742663656885,
+      "val_per_class_f1": {
+        "neutral": 0.767,
+        "joy": 0.568,
+        "sadness": 0.4,
+        "anger": 0.447,
+        "surprise": 0.633,
+        "fear": 0.122,
+        "disgust": 0.194
+      },
+      "epoch_time_sec": 23.97502636909485
+    },
+    {
+      "epoch": 4,
+      "train_loss": 1.0770390207950886,
+      "val_weighted_f1": 0.6029302845378611,
+      "val_macro_f1": 0.446998640354607,
+      "val_shift_f1": 0.7095343680709535,
+      "val_per_class_f1": {
+        "neutral": 0.766,
+        "joy": 0.56,
+        "sadness": 0.411,
+        "anger": 0.448,
+        "surprise": 0.629,
+        "fear": 0.122,
+        "disgust": 0.194
+      },
+      "epoch_time_sec": 24.787123441696167
+    },
+    {
+      "epoch": 5,
+      "train_loss": 1.0554781097632189,
+      "val_weighted_f1": 0.5993895646415913,
+      "val_macro_f1": 0.44611133359815297,
+      "val_shift_f1": 0.7109634551495017,
+      "val_per_class_f1": {
+        "neutral": 0.765,
+        "joy": 0.569,
+        "sadness": 0.396,
+        "anger": 0.433,
+        "surprise": 0.624,
+        "fear": 0.087,
+        "disgust": 0.25
+      },
+      "epoch_time_sec": 24.004666566848755
+    },
+    {
+      "epoch": 6,
+      "train_loss": 1.0354219785103431,
+      "val_weighted_f1": 0.5999784110839845,
+      "val_macro_f1": 0.44400038644046363,
+      "val_shift_f1": 0.6539833531510107,
+      "val_per_class_f1": {
+        "neutral": 0.765,
+        "joy": 0.57,
+        "sadness": 0.398,
+        "anger": 0.429,
+        "surprise": 0.628,
+        "fear": 0.125,
+        "disgust": 0.194
+      },
+      "epoch_time_sec": 24.615748405456543
+    },
+    {
+      "epoch": 7,
+      "train_loss": 0.9983808535795945,
+      "val_weighted_f1": 0.6005404905414704,
+      "val_macro_f1": 0.4496297687766622,
+      "val_shift_f1": 0.6681870011402509,
+      "val_per_class_f1": {
+        "neutral": 0.769,
+        "joy": 0.575,
+        "sadness": 0.385,
+        "anger": 0.43,
+        "surprise": 0.613,
+        "fear": 0.125,
+        "disgust": 0.25
+      },
+      "epoch_time_sec": 24.34039330482483
+    },
+    {
+      "epoch": 8,
+      "train_loss": 0.9633733483461233,
+      "val_weighted_f1": 0.5993699965721554,
+      "val_macro_f1": 0.4501819899917864,
+      "val_shift_f1": 0.6717226435536294,
+      "val_per_class_f1": {
+        "neutral": 0.763,
+        "joy": 0.563,
+        "sadness": 0.392,
+        "anger": 0.445,
+        "surprise": 0.616,
+        "fear": 0.122,
+        "disgust": 0.25
+      },
+      "epoch_time_sec": 24.390104293823242
+    },
+    {
+      "epoch": 9,
+      "train_loss": 0.9207142618986276,
+      "val_weighted_f1": 0.5995450066038192,
+      "val_macro_f1": 0.4464222236590675,
+      "val_shift_f1": 0.6629339305711086,
+      "val_per_class_f1": {
+        "neutral": 0.771,
+        "joy": 0.564,
+        "sadness": 0.378,
+        "anger": 0.456,
+        "surprise": 0.594,
+        "fear": 0.12,
+        "disgust": 0.242
+      },
+      "epoch_time_sec": 24.569416522979736
+    },
+    {
+      "epoch": 10,
+      "train_loss": 0.8776036693499638,
+      "val_weighted_f1": 0.5988579658227626,
+      "val_macro_f1": 0.4364795900251343,
+      "val_shift_f1": 0.6272617611580217,
+      "val_per_class_f1": {
+        "neutral": 0.769,
+        "joy": 0.574,
+        "sadness": 0.389,
+        "anger": 0.45,
+        "surprise": 0.598,
+        "fear": 0.082,
+        "disgust": 0.194
+      },
+      "epoch_time_sec": 24.32905077934265
+    }
+  ],
+  "all_7_classes_nonzero": true
+}

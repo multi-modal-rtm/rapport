@@ -1,0 +1,15 @@
+\begin{table}[t]
+\centering
+\caption{MELD, fine-tuned foundation: scratch retraining (N4) vs.\ residual attribution (N4-R). The full-stack deficit shrinks 63\% under residual attribution.}
+\label{tab:scratch-vs-residual}
+\begin{tabular}{lcc}
+\toprule
+ & scratch (N4) & residual (N4-R) \\
+\midrule
+baseline (fusion only) & 0.6356 $\pm$ 0.0013 & 0.6392 $\pm$ 0.0011 \\
+full stack & 0.6228 $\pm$ 0.0155 & 0.6344 $\pm$ 0.0061 \\
+gap (full $-$ baseline) & -0.0129 & -0.0048 \\
+\bottomrule
+\end{tabular}
+\par\footnotesize Source: outputs/\{full,base\_fusion\}\_seed\{42,1337,2024\}/metrics.json (scratch), outputs/\{full\_R,base\_fusion\_R\}\_seed\{42,1337,2024\}/metrics.json (residual).
+\end{table}
