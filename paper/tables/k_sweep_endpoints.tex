@@ -1,0 +1,14 @@
+\begin{table}[t]
+\centering
+\caption{Context-window ($k$) sweep, MELD: paired per-seed gain (full\_R $-$ text anchor) at the powered endpoints.}
+\label{tab:k-sweep-endpoints}
+\begin{tabular}{lccc}
+\toprule
+endpoint & $n$ pairs & paired gain & $|$gain$|>$std \\
+\midrule
+$k=0$ & 5 & -0.0080 $\pm$ 0.0136 & False \\
+$k=8$ & 7 & -0.0088 $\pm$ 0.0072 & True \\
+\bottomrule
+\end{tabular}
+\par\footnotesize Source: outputs/subsumption\_curve\_data.json['paired\_n7\_test']. $k=0$ text anchor is $n{=}5$, not $n{=}7$ (docs/PHASE\_N5A.md).
+\end{table}

@@ -7,3 +7,19 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 .hydra/
+# LaTeX build artifacts (paper/) -- scoped to paper/ specifically, NOT a
+# bare */.log or *.aux, since docs/train_*.log training logs are tracked
+# on purpose elsewhere in this repo (write-on-produce convention).
+paper/build/
+paper/*.aux
+paper/*.bbl
+paper/*.bcf
+paper/*.blg
+paper/*.log
+paper/*.out
+paper/*.toc
+paper/*.fls
+paper/*.fdb_latexmk
+paper/*.synctex.gz
+paper/*.run.xml
+paper/sections/*.aux

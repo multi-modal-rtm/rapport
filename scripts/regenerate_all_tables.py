@@ -31,6 +31,14 @@ MELD_SEEDS = (42, 1337, 2024)
 IEMOCAP_SEEDS = (42, 1337, 2024)
 
 
+def tex_escape(s: str) -> str:
+    """Escapes underscores for safe use outside LaTeX math mode (run names/
+    JSON field names contain literal underscores that break compilation
+    otherwise -- caught when the tectonic-compiled paper first surfaced
+    unescaped underscores in these two footnotes)."""
+    return s.replace("_", "\\_")
+
+
 def load(run_name: str) -> dict:
     return json.loads((OUTPUTS_DIR / run_name / "metrics.json").read_text())
 
@@ -47,9 +55,17 @@ def wf1(run_name: str) -> float:
     return load(run_name)["test_weighted_f1"]
 
 
-def booktabs(caption: str, label: str, col_spec: str, header: list[str], rows: list[list[str]], notes: str = "") -> str:
+def booktabs(
+    caption: str, label: str, col_spec: str, header: list[str], rows: list[list[str]], notes: str = "", wide: bool = False
+) -> str:
+    """`wide=True` emits a `table*` (spans both columns of a two-column
+    IEEEtran layout) instead of a single-column `table` -- needed for
+    tables whose header/cell content (e.g. full run-config names as
+    column headers) overflows a ~3.5in single column. Set per-table by
+    the caller based on measured column content, not guessed in advance."""
+    env = "table*" if wide else "table"
     lines = []
-    lines.append(r"\begin{table}[t]")
+    lines.append(rf"\begin{{{env}}}[t]")
     lines.append(r"\centering")
     lines.append(rf"\caption{{{caption}}}")
     lines.append(rf"\label{{{label}}}")
@@ -63,7 +79,7 @@ def booktabs(caption: str, label: str, col_spec: str, header: list[str], rows: l
     lines.append(r"\end{tabular}")
     if notes:
         lines.append(rf"\par\footnotesize {notes}")
-    lines.append(r"\end{table}")
+    lines.append(rf"\end{{{env}}}")
     return "\n".join(lines) + "\n"
 
 
@@ -90,7 +106,7 @@ def table_a_meld_probe() -> None:
         col_spec="lcc",
         header=["row", "unbalanced", "balanced"],
         rows=rows,
-        notes=f"Source: outputs/meld\\_probe\\_table.json (scripts/probe\\_features.py). Metric: {data['metric']}.",
+        notes=f"Source: outputs/meld\\_probe\\_table.json (scripts/probe\\_features.py). Metric: {tex_escape(data['metric'])}.",
     )
     write("meld_probe_table.tex", content)
 
@@ -117,6 +133,7 @@ def table_b_frozen_bridging() -> None:
         rows=rows,
         notes="Source: outputs/subsumption\\_curve\\_data.json['bridging'] "
         "(scripts/train\\_frozen\\_text\\_foundation.py, scripts/run\\_bridging\\_matrix.py).",
+        wide=True,  # config-name column ("base_fusion_R_frozen") overflows a single IEEEtran column
     )
     write("frozen_bridging_table.tex", content)
 
@@ -209,6 +226,7 @@ def table_e_iemocap_decisive() -> None:
         notes="Source: outputs/iemocap\\_text\\_anchor\\_seed*, outputs/\\{full\\_R,minus\\_relational\\_R\\}\\_iemocap\\_seed*, "
         "outputs/context\\_text\\_plain\\_ce\\_seed*, outputs/\\{full\\_R,minus\\_relational\\_R\\}\\_seed*. "
         "Pre-registered hypothesis REFUTED (docs/PHASE\\_N5B.md).",
+        wide=True,  # long source footnote overflows a single IEEEtran column
     )
     write("iemocap_decisive_table.tex", content)
 
@@ -249,7 +267,8 @@ def table_f_per_class(corpus: str) -> None:
         col_spec="l" + "c" * len(configs),
         header=header,
         rows=rows,
-        notes=f"Source: outputs/\\{{{','.join(configs)}\\}}\\_seed*/metrics.json ('test\\_per\\_class\\_f1').",
+        notes=f"Source: outputs/\\{{{','.join(tex_escape(c) for c in configs)}\\}}\\_seed*/metrics.json ('test\\_per\\_class\\_f1').",
+        wide=True,  # 4 full run-config names as column headers overflow a single IEEEtran column
     )
     write(f"per_class_{label_suffix}.tex", content)
 

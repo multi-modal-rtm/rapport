@@ -1,0 +1,66 @@
+% main.tex -- TAFFC-style submission.
+% NOTE: no template_reference.tex was available to model (see the final
+% STOP report) -- IEEEtran (journal mode), the standard class for IEEE
+% Transactions submissions including TAFFC, is used as the closest
+% well-defined convention. Swap \documentclass options / add the
+% publisher's own class file if a TAFFC-specific template is later
+% provided.
+\documentclass[journal]{IEEEtran}
+
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{url}
+
+\graphicspath{{figures/}}
+
+\begin{document}
+
+\title{Do Conversation Graphs Survive Fine-Tuned Encoders? A Controlled Attribution Study of Multimodal Emotion Recognition in Conversation}
+
+% AUTHOR BLOCK: placeholder -- names, affiliations, and emails pending
+% from the human. IEEEtran journal-mode author block shown commented out
+% below as a ready-to-fill template.
+\author{
+  % \IEEEauthorblockN{First Author, Second Author}
+  % \IEEEauthorblockA{Affiliation, City, Country \\ Email: \{first,second\}@example.edu}
+  \IEEEauthorblockN{Author names withheld pending human input}
+}
+
+\markboth{IEEE Transactions on Affective Computing}{}
+
+\maketitle
+
+\begin{abstract}
+Graph-based context modeling is the dominant architectural paradigm in multimodal emotion recognition in conversation (ERC), yet reported gains are typically measured over frozen or weakly adapted encoders. We present a controlled attribution study asking whether conversation-graph machinery --- speaker-state recurrence, relationship memory, and shift-aware objectives --- retains measurable value once the text encoder is fine-tuned. Using a residual do-no-harm design in which every component provably initializes as an identity on a frozen foundation, we find, across two benchmarks (MELD, IEMOCAP) and up to seven seeds, that on frozen features the graph stack's paired gain is $+0.0356$ (std $0.0106$), reproducing the literature premise; after fine-tuning the text encoder, even without conversational context in its input window, the gain falls to $-0.0080$ (std $0.0136$), and at the locked recipe to $-0.0088$ (std $0.0072$); and a pre-registered trial on IEMOCAP's longer dyadic dialogues, designed to favor relationship memory, instead finds a more negative isolated contribution ($-0.0334$, std $0.0284$) than on MELD ($-0.0022$, std $0.0086$), refuting rather than rescuing the mechanism. Relational memory still improves an auxiliary shift-detection task on both corpora, showing the null is not from a broken component. We release the methodology, code, and pre-registered decision history as a reusable protocol.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Emotion recognition in conversation, multimodal fusion, graph neural networks, attribution methodology, ablation validity, parameter-efficient fine-tuning, IEMOCAP, MELD.
+\end{IEEEkeywords}
+
+\input{sections/1_introduction}
+\input{sections/2_related_work}
+\input{sections/3_methodology}
+\input{sections/4_meld_experiments}
+\input{sections/5_iemocap}
+\input{sections/6_analysis}
+\input{sections/7_conclusion}
+
+\appendix
+\input{sections/8_appendix}
+
+% ACKNOWLEDGMENTS: placeholder -- pending TUIT grant / SAIL acknowledgment
+% text from the human (docs/PAPER_SKELETON.md's compliance checklist
+% flags both as required; neither's exact wording is specified anywhere
+% in the repo, so nothing is invented here).
+\section*{Acknowledgments}
+Acknowledgments pending (SAIL usage-license acknowledgment per release-form clause 5; TUIT grant acknowledgment if required by institutional policy -- see \texttt{docs/PAPER\_SKELETON.md}'s compliance checklist).
+
+\section*{Data Availability}
+MELD is publicly available. IEMOCAP is available by license from SAIL, University of Southern California (\url{https://sail.usc.edu/iemocap/}); per the release terms, a courtesy summary of these evaluations will be shared with SAIL before public reporting (clause 6). Code and the complete experimental decision history, including failed intermediate designs, are available at \url{https://github.com/multi-modal-rtm/rapport}.
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}
