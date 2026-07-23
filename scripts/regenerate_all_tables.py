@@ -4,7 +4,10 @@ Reads ONLY stored artifacts (outputs/*/metrics.json, outputs/*.json) --
 no number in this script's OUTPUT tables is hand-typed. Every table is a
 pure function of files already committed/present under outputs/.
 
-Emits LaTeX booktabs tables to paper_assets/tables/*.tex:
+Default mode emits LaTeX booktabs tables to paper_assets/tables/*.tex,
+each with a full "Source: ..." provenance footnote -- this is the
+reproducibility-archive copy (see docs/REPRODUCE.md, which diffs it
+byte-for-byte against a fresh clone's regeneration):
   (a) meld_probe_table.tex         -- per-modality + concat probes
   (b) frozen_bridging_table.tex    -- frozen-regime bridging experiment
   (c) meld_scratch_vs_residual.tex -- N4 (scratch) vs N4-R (residual)
@@ -13,19 +16,29 @@ Emits LaTeX booktabs tables to paper_assets/tables/*.tex:
   (f) per_class_meld.tex, per_class_iemocap.tex
   (g) per_seed_appendix.tex
 
+`--paper` mode emits the same tables to paper/tables/*.tex instead, with
+the path/script "Source: ..." footnote stripped (that provenance lives in
+docs/TABLE_PROVENANCE.md for camera-ready copy); substantive remarks
+that are not themselves path/script references (e.g. "Metric: weighted
+F1", "Pre-registered hypothesis REFUTED") are kept in both modes.
+
 Usage:
     uv run python -m scripts.regenerate_all_tables
+    uv run python -m scripts.regenerate_all_tables --paper
 """
 
 from __future__ import annotations
 
 import json
 import statistics
+import sys
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 OUTPUTS_DIR = PROJECT_ROOT / "outputs"
 TABLES_DIR = PROJECT_ROOT / "paper_assets" / "tables"
+PAPER_TABLES_DIR = PROJECT_ROOT / "paper" / "tables"
+PAPER_MODE = "--paper" in sys.argv[1:]
 
 MELD_SEEDS = (42, 1337, 2024)
 IEMOCAP_SEEDS = (42, 1337, 2024)
@@ -56,13 +69,27 @@ def wf1(run_name: str) -> float:
 
 
 def booktabs(
-    caption: str, label: str, col_spec: str, header: list[str], rows: list[list[str]], notes: str = "", wide: bool = False
+    caption: str,
+    label: str,
+    col_spec: str,
+    header: list[str],
+    rows: list[list[str]],
+    source: str = "",
+    remark: str = "",
+    wide: bool = False,
 ) -> str:
     """`wide=True` emits a `table*` (spans both columns of a two-column
     IEEEtran layout) instead of a single-column `table` -- needed for
     tables whose header/cell content (e.g. full run-config names as
     column headers) overflows a ~3.5in single column. Set per-table by
-    the caller based on measured column content, not guessed in advance."""
+    the caller based on measured column content, not guessed in advance.
+
+    `source` is path/script provenance ("Source: outputs/....json
+    (scripts/....py)."); it is dropped in `--paper` mode, where that
+    mapping instead lives in docs/TABLE_PROVENANCE.md. `remark` is a
+    substantive caption note that isn't a path/script reference (e.g.
+    a metric clarification or a result annotation); it is kept in both
+    modes."""
     env = "table*" if wide else "table"
     lines = []
     lines.append(rf"\begin{{{env}}}[t]")
@@ -77,15 +104,17 @@ def booktabs(
         lines.append(" & ".join(row) + r" \\")
     lines.append(r"\bottomrule")
     lines.append(r"\end{tabular}")
-    if notes:
-        lines.append(rf"\par\footnotesize {notes}")
+    notes_parts = [p for p in (remark, "" if PAPER_MODE else source) if p]
+    if notes_parts:
+        lines.append(rf"\par\footnotesize {' '.join(notes_parts)}")
     lines.append(rf"\end{{{env}}}")
     return "\n".join(lines) + "\n"
 
 
 def write(name: str, content: str) -> None:
-    TABLES_DIR.mkdir(parents=True, exist_ok=True)
-    path = TABLES_DIR / name
+    out_dir = PAPER_TABLES_DIR if PAPER_MODE else TABLES_DIR
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / name
     path.write_text(content)
     print(f"[regenerate_all_tables] wrote {path}")
 
@@ -106,7 +135,8 @@ def table_a_meld_probe() -> None:
         col_spec="lcc",
         header=["row", "unbalanced", "balanced"],
         rows=rows,
-        notes=f"Source: outputs/meld\\_probe\\_table.json (scripts/probe\\_features.py). Metric: {tex_escape(data['metric'])}.",
+        source="Source: outputs/meld\\_probe\\_table.json (scripts/probe\\_features.py).",
+        remark=f"Metric: {tex_escape(data['metric'])}.",
     )
     write("meld_probe_table.tex", content)
 
@@ -131,7 +161,7 @@ def table_b_frozen_bridging() -> None:
         col_spec="lccc",
         header=["config", "test weighted F1", "paired gain vs.\\ anchor", "n seeds"],
         rows=rows,
-        notes="Source: outputs/subsumption\\_curve\\_data.json['bridging'] "
+        source="Source: outputs/subsumption\\_curve\\_data.json['bridging'] "
         "(scripts/train\\_frozen\\_text\\_foundation.py, scripts/run\\_bridging\\_matrix.py).",
         wide=True,  # config-name column ("base_fusion_R_frozen") overflows a single IEEEtran column
     )
@@ -166,7 +196,7 @@ def table_c_scratch_vs_residual() -> None:
         col_spec="lcc",
         header=["", "scratch (N4)", "residual (N4-R)"],
         rows=rows,
-        notes="Source: outputs/\\{full,base\\_fusion\\}\\_seed\\{42,1337,2024\\}/metrics.json (scratch), "
+        source="Source: outputs/\\{full,base\\_fusion\\}\\_seed\\{42,1337,2024\\}/metrics.json (scratch), "
         "outputs/\\{full\\_R,base\\_fusion\\_R\\}\\_seed\\{42,1337,2024\\}/metrics.json (residual).",
     )
     write("meld_scratch_vs_residual.tex", content)
@@ -188,8 +218,8 @@ def table_d_k_sweep_endpoints() -> None:
         col_spec="lccc",
         header=["endpoint", "$n$ pairs", "paired gain", "$|$gain$|>$std"],
         rows=rows,
-        notes="Source: outputs/subsumption\\_curve\\_data.json['paired\\_n7\\_test']. "
-        "$k=0$ text anchor is $n{=}5$, not $n{=}7$ (docs/PHASE\\_N5A.md).",
+        source="Source: outputs/subsumption\\_curve\\_data.json['paired\\_n7\\_test'] (docs/PHASE\\_N5A.md).",
+        remark="$k=0$ text anchor is $n{=}5$, not $n{=}7$.",
     )
     write("k_sweep_endpoints.tex", content)
 
@@ -223,9 +253,9 @@ def table_e_iemocap_decisive() -> None:
         col_spec="lcc",
         header=["paired gain", "IEMOCAP", "MELD"],
         rows=rows,
-        notes="Source: outputs/iemocap\\_text\\_anchor\\_seed*, outputs/\\{full\\_R,minus\\_relational\\_R\\}\\_iemocap\\_seed*, "
-        "outputs/context\\_text\\_plain\\_ce\\_seed*, outputs/\\{full\\_R,minus\\_relational\\_R\\}\\_seed*. "
-        "Pre-registered hypothesis REFUTED (docs/PHASE\\_N5B.md).",
+        source="Source: outputs/iemocap\\_text\\_anchor\\_seed*, outputs/\\{full\\_R,minus\\_relational\\_R\\}\\_iemocap\\_seed*, "
+        "outputs/context\\_text\\_plain\\_ce\\_seed*, outputs/\\{full\\_R,minus\\_relational\\_R\\}\\_seed* (docs/PHASE\\_N5B.md).",
+        remark="Pre-registered hypothesis REFUTED.",
         wide=True,  # long source footnote overflows a single IEEEtran column
     )
     write("iemocap_decisive_table.tex", content)
@@ -267,7 +297,7 @@ def table_f_per_class(corpus: str) -> None:
         col_spec="l" + "c" * len(configs),
         header=header,
         rows=rows,
-        notes=f"Source: outputs/\\{{{','.join(tex_escape(c) for c in configs)}\\}}\\_seed*/metrics.json ('test\\_per\\_class\\_f1').",
+        source=f"Source: outputs/\\{{{','.join(tex_escape(c) for c in configs)}\\}}\\_seed*/metrics.json ('test\\_per\\_class\\_f1').",
         wide=True,  # 4 full run-config names as column headers overflow a single IEEEtran column
     )
     write(f"per_class_{label_suffix}.tex", content)
@@ -297,7 +327,7 @@ def table_g_per_seed_appendix() -> None:
         col_spec="llc",
         header=["config", "seed", "test weighted F1"],
         rows=rows,
-        notes="Source: every outputs/*/metrics.json referenced by tables (c)-(e).",
+        source="Source: every outputs/*/metrics.json referenced by tables (c)-(e).",
     )
     write("per_seed_appendix.tex", content)
 

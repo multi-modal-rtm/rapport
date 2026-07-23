@@ -1,22 +1,32 @@
-% references.bib -- normalized from docs/CITATIONS.md
-% Generated for the CITATION INTEGRATION task. Fields preserved verbatim from
-% the publisher-exported BibTeX in docs/CITATIONS.md; only the citation KEY
-% was changed (to a short, LaTeX-safe key derived from the ## heading). See
-% docs/CITATIONS.md for the original heading/source of each entry.
+% references.bib -- rebuilt from docs/CITATIONS.md (31 headings, 26 distinct
+% papers, human-verified update). Fields preserved verbatim from the
+% publisher-exported BibTeX; only the citation KEY was changed to a short
+% LaTeX-safe key.
 %
-% FLAGGED FOR HUMAN REVIEW -- likely wrong-paper citations (content not
-% altered; verify against the actual paper being cited in prose):
-%   mmgcn2019        -- title/abstract are for a MICRO-VIDEO RECOMMENDATION
-%                       paper (Wei et al., ACM MM 2019), not an ERC/emotion-
-%                       recognition paper. sections/{2,4} cite 'MMGCN' in an
-%                       ERC context.
-%   spcl2021         -- title/abstract are for a SEMANTIC SEGMENTATION domain-
-%                       adaptation paper, not an ERC contrastive-learning
-%                       paper. section 2 cites 'SPCL' as a CoMPM successor
-%                       ('speaker-aware memory and contrastive objectives').
-%   socialarcnet2026 -- year={2026} but series={ICFNDS '25}; internally
-%                       inconsistent year/series field, left exactly as
-%                       exported (not altered).
+% RESOLVED CONFLICT (flagged, not silently picked): the 'MMGCN' heading had
+% TWO DIFFERING bodies across its two occurrences in docs/CITATIONS.md --
+% the Section 2 copy is the correct ERC paper (Hu et al., ACL 2021,
+% 'MMGCN: Multimodal Fusion via Deep Graph Convolution Network for Emotion
+% Recognition in Conversation'), matching what both draft sections actually
+% cite MMGCN as; the Section 4 copy was still the OLD WRONG paper (Wei et
+% al., ACM MM 2019, a micro-video RECOMMENDATION system, flagged in the
+% prior citation-integration pass). The correct (Section 2) version is used
+% here under key mmgcn2021; the stale Section-4 copy is dropped entirely,
+% not merged or kept as a second entry.
+%
+% MECHANICAL FIX (entry type/field name only, value untouched): feng2023peftser
+% was exported by Scopus as the nonstandard CONFERENCE entry type, with the
+% proceedings name under the "journal" field -- IEEEtran.bst doesn't
+% recognize that entry type and warns of an empty booktitle. Remapped to
+% the standard inproceedings entry type with that same string value now
+% under "booktitle"; no field content was invented or altered.
+%
+% NOTE: this file is BibTeX, not LaTeX -- a leading percent sign does NOT
+% make a line a comment to BibTeX's own parser (only to LaTeX). BibTeX
+% scans for the entry-start symbol anywhere in the file to find entries,
+% even inside what looks like a percent-prefixed comment here, so that
+% symbol is avoided entirely throughout these header notes (entry-type
+% names are given without it) to avoid being misparsed as a malformed entry.
 
 @inproceedings{dialoguernn2019,
 author = {Majumder, Navonil and Poria, Soujanya and Hazarika, Devamanyu and Mihalcea, Rada and Gelbukh, Alexander and Cambria, Erik},
@@ -42,22 +52,25 @@ series = {AAAI'19/IAAI'19/EAAI'19}
   url={https://api.semanticscholar.org/CorpusID:201698197}
 }
 
-@inproceedings{mmgcn2019,
-author = {Wei, Yinwei and Wang, Xiang and Nie, Liqiang and He, Xiangnan and Hong, Richang and Chua, Tat-Seng},
-title = {MMGCN: Multi-modal Graph Convolution Network for Personalized Recommendation of Micro-video},
-year = {2019},
-isbn = {9781450368896},
-publisher = {Association for Computing Machinery},
-address = {New York, NY, USA},
-url = {https://doi.org/10.1145/3343031.3351034},
-doi = {10.1145/3343031.3351034},
-abstract = {Personalized recommendation plays a central role in many online content sharing platforms. To provide quality micro-video recommendation service, it is of crucial importance to consider the interactions between users and items (i.e. micro-videos) as well as the item contents from various modalities (e.g. visual, acoustic, and textual). Existing works on multimedia recommendation largely exploit multi-modal contents to enrich item representations, while less effort is made to leverage information interchange between users and items to enhance user representations and further capture user's fine-grained preferences on different modalities. In this paper, we propose to exploit user-item interactions to guide the representation learning in each modality, and further personalized micro-video recommendation. We design a Multi-modal Graph Convolution Network (MMGCN) framework built upon the message-passing idea of graph neural networks, which can yield modal-specific representations of users and micro-videos to better capture user preferences. Specifically, we construct a user-item bipartite graph in each modality, and enrich the representation of each node with the topological structure and features of its neighbors. Through extensive experiments on three publicly available datasets, Tiktok, Kwai, and MovieLens, we demonstrate that our proposed model is able to significantly outperform state-of-the-art multi-modal recommendation methods.},
-booktitle = {Proceedings of the 27th ACM International Conference on Multimedia},
-pages = {1437–1445},
-numpages = {9},
-keywords = {graph convolution network, micro-video understanding, multi-modal recommendation},
-location = {Nice, France},
-series = {MM '19}
+@inproceedings{mmgcn2021,
+    title = "{MMGCN}: Multimodal Fusion via Deep Graph Convolution Network for Emotion Recognition in Conversation",
+    author = "Hu, Jingwen  and
+      Liu, Yuchen  and
+      Zhao, Jinming  and
+      Jin, Qin",
+    editor = "Zong, Chengqing  and
+      Xia, Fei  and
+      Li, Wenjie  and
+      Navigli, Roberto",
+    booktitle = "Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing (Volume 1: Long Papers)",
+    month = aug,
+    year = "2021",
+    address = "Online",
+    publisher = "Association for Computational Linguistics",
+    url = "https://aclanthology.org/2021.acl-long.440/",
+    doi = "10.18653/v1/2021.acl-long.440",
+    pages = "5666--5675",
+    abstract = "Emotion recognition in conversation (ERC) is a crucial component in affective dialogue systems, which helps the system understand users' emotions and generate empathetic responses. However, most works focus on modeling speaker and contextual information primarily on the textual modality or simply leveraging multimodal information through feature concatenation. In order to explore a more effective way of utilizing both multimodal and long-distance contextual information, we propose a new model based on multimodal fused graph convolutional network, MMGCN, in this work. MMGCN can not only make use of multimodal dependencies effectively, but also leverage speaker information to model inter-speaker and intra-speaker dependency. We evaluate our proposed model on two public benchmark datasets, IEMOCAP and MELD, and the results prove the effectiveness of MMGCN, which outperforms other SOTA methods by a significant margin under the multimodal conversation setting."
 }
 
 @inproceedings{cogmen2022,
@@ -151,22 +164,14 @@ series = {ICFNDS '25}
   bibsource    = {dblp computer science bibliography, https://dblp.org}
 }
 
-@article{spcl2021,
-  author       = {Binhui Xie and
-                  Kejia Yin and
-                  Shuang Li and
-                  Xinjing Chen},
-  title        = {{SPCL:} {A} New Framework for Domain Adaptive Semantic Segmentation
-                  via Semantic Prototype-based Contrastive Learning},
-  journal      = {CoRR},
-  volume       = {abs/2111.12358},
-  year         = {2021},
-  url          = {https://arxiv.org/abs/2111.12358},
-  eprinttype   = {arXiv},
-  eprint       = {2111.12358},
-  timestamp    = {Wed, 01 Dec 2021 12:10:41 +0100},
-  biburl       = {https://dblp.org/rec/journals/corr/abs-2111-12358.bib},
-  bibsource    = {dblp computer science bibliography, https://dblp.org}
+@misc{spcl2022,
+      title={Supervised Prototypical Contrastive Learning for Emotion Recognition in Conversation}, 
+      author={Xiaohui Song and Longtao Huang and Hui Xue and Songlin Hu},
+      year={2022},
+      eprint={2210.08713},
+      archivePrefix={arXiv},
+      primaryClass={cs.AI},
+      url={https://arxiv.org/abs/2210.08713}, 
 }
 
 @misc{missbench2026,
@@ -223,6 +228,160 @@ series = {ICFNDS '25}
   timestamp    = {Thu, 25 Jul 2019 10:47:42 +0200},
   biburl       = {https://dblp.org/rec/journals/corr/ZadehCPCM17.bib},
   bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+@misc{lucic2018gans,
+      title={Are GANs Created Equal? A Large-Scale Study}, 
+      author={Mario Lucic and Karol Kurach and Marcin Michalski and Sylvain Gelly and Olivier Bousquet},
+      year={2018},
+      eprint={1711.10337},
+      archivePrefix={arXiv},
+      primaryClass={stat.ML},
+      url={https://arxiv.org/abs/1711.10337}, 
+}
+
+@article{melis2017evaluation,
+  author       = {G{\'{a}}bor Melis and
+                  Chris Dyer and
+                  Phil Blunsom},
+  title        = {On the State of the Art of Evaluation in Neural Language Models},
+  journal      = {CoRR},
+  volume       = {abs/1707.05589},
+  year         = {2017},
+  url          = {http://arxiv.org/abs/1707.05589},
+  eprinttype   = {arXiv},
+  eprint       = {1707.05589},
+  timestamp    = {Mon, 13 Aug 2018 16:47:01 +0200},
+  biburl       = {https://dblp.org/rec/journals/corr/MelisDB17.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+@article{pineau2021reproducibility,
+  author  = {Joelle Pineau and Philippe Vincent-Lamarre and Koustuv Sinha and Vincent Lariviere and Alina Beygelzimer and Florence d'Alche-Buc and Emily Fox and Hugo Larochelle},
+  title   = {Improving Reproducibility in Machine Learning Research(A Report from the NeurIPS 2019 Reproducibility Program)},
+  journal = {Journal of Machine Learning Research},
+  year    = {2021},
+  volume  = {22},
+  number  = {164},
+  pages   = {1--20},
+  url     = {http://jmlr.org/papers/v22/20-303.html}
+}
+
+@article{bachlechner2020rezero,
+  author       = {Thomas Bachlechner and
+                  Bodhisattwa Prasad Majumder and
+                  Huanru Henry Mao and
+                  Garrison W. Cottrell and
+                  Julian J. McAuley},
+  title        = {ReZero is All You Need: Fast Convergence at Large Depth},
+  journal      = {CoRR},
+  volume       = {abs/2003.04887},
+  year         = {2020},
+  url          = {https://arxiv.org/abs/2003.04887},
+  eprinttype   = {arXiv},
+  eprint       = {2003.04887},
+  timestamp    = {Sat, 30 Sep 2023 10:08:23 +0200},
+  biburl       = {https://dblp.org/rec/journals/corr/abs-2003-04887.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+@article{zhang2019fixup,
+  author       = {Hongyi Zhang and
+                  Yann N. Dauphin and
+                  Tengyu Ma},
+  title        = {Fixup Initialization: Residual Learning Without Normalization},
+  journal      = {CoRR},
+  volume       = {abs/1901.09321},
+  year         = {2019},
+  url          = {http://arxiv.org/abs/1901.09321},
+  eprinttype   = {arXiv},
+  eprint       = {1901.09321},
+  timestamp    = {Sun, 08 Aug 2021 16:40:51 +0200},
+  biburl       = {https://dblp.org/rec/journals/corr/abs-1901-09321.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+@article{poria2019meld,
+  author       = {Soujanya Poria and
+                  Devamanyu Hazarika and
+                  Navonil Majumder and
+                  Gautam Naik and
+                  Erik Cambria and
+                  Rada Mihalcea},
+  title        = {{MELD:} {A} Multimodal Multi-Party Dataset for Emotion Recognition
+                  in Conversations},
+  journal      = {CoRR},
+  volume       = {abs/1810.02508},
+  year         = {2018},
+  url          = {http://arxiv.org/abs/1810.02508},
+  eprinttype   = {arXiv},
+  eprint       = {1810.02508},
+  timestamp    = {Tue, 30 Oct 2018 10:49:09 +0100},
+  biburl       = {https://dblp.org/rec/journals/corr/abs-1810-02508.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+@article{zhang2021graphless,
+  author       = {Shichang Zhang and
+                  Yozen Liu and
+                  Yizhou Sun and
+                  Neil Shah},
+  title        = {Graph-less Neural Networks: Teaching Old MLPs New Tricks via Distillation},
+  journal      = {CoRR},
+  volume       = {abs/2110.08727},
+  year         = {2021},
+  url          = {https://arxiv.org/abs/2110.08727},
+  eprinttype   = {arXiv},
+  eprint       = {2110.08727},
+  timestamp    = {Fri, 22 Oct 2021 13:33:09 +0200},
+  biburl       = {https://dblp.org/rec/journals/corr/abs-2110-08727.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+@article{huang2020labelprop,
+  author       = {Qian Huang and
+                  Horace He and
+                  Abhay Singh and
+                  Ser{-}Nam Lim and
+                  Austin R. Benson},
+  title        = {Combining Label Propagation and Simple Models Out-performs Graph Neural
+                  Networks},
+  journal      = {CoRR},
+  volume       = {abs/2010.13993},
+  year         = {2020},
+  url          = {https://arxiv.org/abs/2010.13993},
+  eprinttype   = {arXiv},
+  eprint       = {2010.13993},
+  timestamp    = {Mon, 02 Nov 2020 18:17:09 +0100},
+  biburl       = {https://dblp.org/rec/journals/corr/abs-2010-13993.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+@inproceedings{feng2023peftser,
+	author = {Feng, Tiantian and Narayanan, Shrikanth},
+	title = {PEFT-SER: On the Use of Parameter Efficient Transfer Learning Approaches For Speech Emotion Recognition Using Pre-trained Speech Models},
+	year = {2023},
+	booktitle = {2023 11th International Conference on Affective Computing and Intelligent Interaction, ACII 2023},
+	doi = {10.1109/ACII59096.2023.10388152},
+	url = {https://www.scopus.com/inward/record.uri?eid=2-s2.0-85184662122&doi=10.1109%2fACII59096.2023.10388152&partnerID=40&md5=eec7af45c829a958246a332f6d0906ae},
+	type = {Conference paper},
+	publication_stage = {Final},
+	source = {Scopus},
+	note = {Cited by: 38}
+}
+
+@ARTICLE{zhang2025dialoguellm,
+	author = {Zhang, Yazhou and Wang, Mengyao and Wu, Youxi and Tiwari, Prayag and Li, Qiuchi and Wang, Benyou and Qin, Jing},
+	title = {DialogueLLM: Context and emotion knowledge-tuned large language models for emotion recognition in conversations},
+	year = {2025},
+	journal = {Neural Networks},
+	volume = {192},
+	doi = {10.1016/j.neunet.2025.107901},
+	url = {https://www.scopus.com/inward/record.uri?eid=2-s2.0-105012239350&doi=10.1016%2fj.neunet.2025.107901&partnerID=40&md5=4717faad5edf31c62538d5b7964c55e9},
+	type = {Article},
+	publication_stage = {Final},
+	source = {Scopus},
+	note = {Cited by: 23}
 }
 
 @article{menon2021logitadjustment,
