@@ -99,7 +99,18 @@ def main() -> None:
         )
     )
 
-    fig, axes = plt.subplots(1, 2, figsize=(13, 7.2))
+    # Explicit GridSpec (rather than fig.colorbar(ax=<list>), which steals
+    # space from the existing axes via its own internal layout pass and
+    # interacts unpredictably with bbox_inches="tight" -- that combination
+    # is what previously cost the left panel its y-axis label under some
+    # renders) so the colorbar gets its own dedicated axis, and both
+    # confusion-matrix axes keep a fixed, equal amount of room for their
+    # y-axis label and tick labels regardless of colorbar placement.
+    fig = plt.figure(figsize=(13, 7.6))
+    gs = fig.add_gridspec(2, 2, height_ratios=[1, 0.05], hspace=0.65, wspace=0.32)
+    axes = [fig.add_subplot(gs[0, 0]), fig.add_subplot(gs[0, 1])]
+    cax = fig.add_subplot(gs[1, :])
+
     for ax, cm_norm, labels, title in (
         (axes[0], meld_cm_norm, MELD_LABELS, "MELD (Full stack, seed 42)"),
         (axes[1], iemocap_cm_norm, IEMOCAP_LABELS, "IEMOCAP (Full stack, seed 42)"),
@@ -118,16 +129,11 @@ def main() -> None:
                     j, i, f"{cm_norm[i, j]:.2f}", ha="center", va="center",
                     color="white" if cm_norm[i, j] > 0.5 else "black", fontsize=8,
                 )
-    fig.subplots_adjust(wspace=0.45, bottom=0.32)
-    # Single colorbar spanning both panels, centered below them rather than
-    # docked beside only the right panel -- makes the shared [0,1] scale
-    # read as serving both matrices instead of looking like it belongs to
-    # IEMOCAP alone.
-    fig.colorbar(
-        im, ax=axes.tolist(), orientation="horizontal", location="bottom",
-        fraction=0.04, pad=0.32, aspect=40,
-        label="Row-normalized (recall within true class)",
-    )
+
+    # Single colorbar on its own dedicated axis spanning both columns,
+    # centered below both panels -- the shared [0,1] scale reads as
+    # serving both matrices rather than belonging to IEMOCAP alone.
+    fig.colorbar(im, cax=cax, orientation="horizontal", label="Row-normalized (recall within true class)")
     fig.suptitle("Confusion matrices, matched [0,1] color scale (recall-normalized)", fontsize=13)
 
     for ext in ("pdf", "png"):
