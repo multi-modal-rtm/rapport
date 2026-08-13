@@ -82,7 +82,7 @@ def main() -> None:
     axes[1].legend(loc="lower left", fontsize=10, frameon=True)
     fig.suptitle(
         f"MELD mechanism: scratch retraining vs. residual attribution\n"
-        f"(Fusion$\\to$Full stack gap shrinks {shrinkage_pct:.0f}\\% under residual attribution)",
+        f"(Fusion$\\to$Full stack gap shrinks {shrinkage_pct:.0f}% under residual attribution)",
         fontsize=13,
     )
     fig.tight_layout()

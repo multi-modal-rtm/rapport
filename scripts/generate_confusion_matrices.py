@@ -99,7 +99,7 @@ def main() -> None:
         )
     )
 
-    fig, axes = plt.subplots(1, 2, figsize=(13, 6))
+    fig, axes = plt.subplots(1, 2, figsize=(13, 7.2))
     for ax, cm_norm, labels, title in (
         (axes[0], meld_cm_norm, MELD_LABELS, "MELD (Full stack, seed 42)"),
         (axes[1], iemocap_cm_norm, IEMOCAP_LABELS, "IEMOCAP (Full stack, seed 42)"),
@@ -118,8 +118,16 @@ def main() -> None:
                     j, i, f"{cm_norm[i, j]:.2f}", ha="center", va="center",
                     color="white" if cm_norm[i, j] > 0.5 else "black", fontsize=8,
                 )
-    fig.subplots_adjust(wspace=0.45)
-    fig.colorbar(im, ax=axes, label="Row-normalized (recall within true class)", shrink=0.8)
+    fig.subplots_adjust(wspace=0.45, bottom=0.32)
+    # Single colorbar spanning both panels, centered below them rather than
+    # docked beside only the right panel -- makes the shared [0,1] scale
+    # read as serving both matrices instead of looking like it belongs to
+    # IEMOCAP alone.
+    fig.colorbar(
+        im, ax=axes.tolist(), orientation="horizontal", location="bottom",
+        fraction=0.04, pad=0.32, aspect=40,
+        label="Row-normalized (recall within true class)",
+    )
     fig.suptitle("Confusion matrices, matched [0,1] color scale (recall-normalized)", fontsize=13)
 
     for ext in ("pdf", "png"):
