@@ -57,33 +57,33 @@ def main() -> None:
     fig, axes = plt.subplots(1, 2, figsize=(9.5, 5), sharey=True)
 
     panel_data = [
-        ("Scratch retraining (N4)", scratch_base, scratch_full, scratch_gap, axes[0]),
-        ("Residual attribution (N4-R)", residual_base, residual_full, residual_gap, axes[1]),
+        ("Scratch retraining", scratch_base, scratch_full, scratch_gap, axes[0]),
+        ("Residual attribution", residual_base, residual_full, residual_gap, axes[1]),
     ]
 
     for title, base, full, gap, ax in panel_data:
         ax.axhspan(anchor_m - anchor_s, anchor_m + anchor_s, color=COLOR_ANCHOR, alpha=0.15, zorder=0)
-        ax.axhline(anchor_m, color=COLOR_ANCHOR, linewidth=1.5, linestyle="--", label=f"text anchor ({anchor_m:.4f})", zorder=1)
+        ax.axhline(anchor_m, color=COLOR_ANCHOR, linewidth=1.5, linestyle="--", label=f"Text-only anchor ({anchor_m:.4f})", zorder=1)
 
-        ax.errorbar(0, base[0], yerr=base[1], color=COLOR_BASELINE, fmt="s", markersize=11, capsize=6, linewidth=2, label="baseline (fusion only)", zorder=3)
-        ax.errorbar(1, full[0], yerr=full[1], color=COLOR_FULL, fmt="^", markersize=11, capsize=6, linewidth=2, label="full stack", zorder=3)
+        ax.errorbar(0, base[0], yerr=base[1], color=COLOR_BASELINE, fmt="s", markersize=11, capsize=6, linewidth=2, label="Fusion", zorder=3)
+        ax.errorbar(1, full[0], yerr=full[1], color=COLOR_FULL, fmt="^", markersize=11, capsize=6, linewidth=2, label="Full stack", zorder=3)
         ax.plot([0, 1], [base[0], full[0]], color="#8a8a86", linewidth=1.2, linestyle=":", zorder=2)
         ax.annotate(f"gap: {gap:+.4f}", xy=(0.5, (base[0] + full[0]) / 2), xytext=(0, 8), textcoords="offset points", ha="center", fontsize=9)
 
         ax.set_xticks([0, 1])
-        ax.set_xticklabels(["baseline", "full stack"])
+        ax.set_xticklabels(["Fusion", "Full stack"], fontsize=11)
         ax.set_xlim(-0.4, 1.4)
-        ax.set_title(title, fontsize=11)
+        ax.set_title(title, fontsize=13)
         ax.grid(True, axis="y", alpha=0.25, linewidth=0.5)
         for spine in ("top", "right"):
             ax.spines[spine].set_visible(False)
 
-    axes[0].set_ylabel("Test weighted F1")
-    axes[1].legend(loc="lower left", fontsize=8, frameon=True)
+    axes[0].set_ylabel("Test weighted F1", fontsize=12)
+    axes[1].legend(loc="lower left", fontsize=10, frameon=True)
     fig.suptitle(
         f"MELD mechanism: scratch retraining vs. residual attribution\n"
-        f"(baseline$\\to$full gap shrinks {shrinkage_pct:.0f}\\% under residual attribution)",
-        fontsize=11,
+        f"(Fusion$\\to$Full stack gap shrinks {shrinkage_pct:.0f}\\% under residual attribution)",
+        fontsize=13,
     )
     fig.tight_layout()
 

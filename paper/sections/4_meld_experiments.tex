@@ -39,7 +39,7 @@ The contrast between Sections~\ref{sec:meld-frozen} and~\ref{sec:meld-finetuned}
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{figures/boundary_figure.pdf}
-\caption{The fine-tuning boundary: graph machinery's paired gain, frozen vs.\ fine-tuned foundations (MELD). Positive on frozen features; null-to-negative at both fine-tuned endpoints.}
+\caption{Paired per-seed gain of the Full stack over its own Text-only anchor, MELD, at three points: frozen foundation ($+0.0356$), fine-tuned foundation at context width $k=0$ ($-0.0080$), and fine-tuned foundation at $k=8$, the locked recipe ($-0.0088$). Marker shape (circle vs.\ square) distinguishes the frozen point from the two fine-tuned points independently of color; error bars are one standard deviation across seeds. The gain is positive only on the frozen foundation --- both fine-tuned endpoints are null-to-negative.}
 \label{fig:boundary}
 \end{figure}
 
@@ -55,7 +55,7 @@ At $k=8$ the gain is $-0.0088 \pm 0.0072$ (negative, exceeding one standard devi
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{figures/k_sweep_curve.pdf}
-\caption{MELD subsumption curve: graph stack's paired residual gain across context-window widths $k \in \{0,2,4,8\}$. Endpoints ($k=0$, $k=8$) powered to $n=5$/$n=7$ seeds with bold error bars; interior points ($k=2,4$) are single-seed trend indicators, de-emphasized.}
+\caption{MELD context-window sweep: paired per-seed gain of the Full stack over its own Text-only anchor (y-axis, ``Paired gain in weighted F1'') at each context window size $k$ (x-axis, ``Context window size $k$''), $k \in \{0,2,4,8\}$. Endpoints ($k=0$, $k=8$; square markers with error bars) are multi-seed, $n=5$ and $n=7$ respectively, error bars one standard deviation; interior points ($k=2$, $k=4$; light circle markers, no error bars) are single-seed trend indicators only, de-emphasized rather than treated as estimates.}
 \label{fig:k-sweep}
 \end{figure}
 
@@ -67,7 +67,7 @@ Three analyses localize the mechanism. First, overfitting: under scratch retrain
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\textwidth]{figures/mechanism_figure.pdf}
-\caption{MELD mechanism: scratch retraining vs.\ residual attribution. The baseline$\to$full-stack gap shrinks $63\%$ once the incidental-presence confound is removed by construction.}
+\caption{MELD mechanism, two panels at matched scale: test weighted F1 for Fusion and Full stack under scratch retraining (left) versus residual attribution (right), with the Text-only anchor shown as a dashed reference line and a shaded one-standard-deviation band. The Fusion-to-Full-stack gap shrinks $63\%$ under residual attribution (from $-0.0129$ to $-0.0048$), showing that most of the deficit scratch retraining reports is an optimization-and-capacity artifact of that design rather than a property of the components themselves.}
 \label{fig:mechanism}
 \end{figure*}
 

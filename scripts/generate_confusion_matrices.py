@@ -101,25 +101,26 @@ def main() -> None:
 
     fig, axes = plt.subplots(1, 2, figsize=(13, 6))
     for ax, cm_norm, labels, title in (
-        (axes[0], meld_cm_norm, MELD_LABELS, "MELD (full$_R$, seed 42)"),
-        (axes[1], iemocap_cm_norm, IEMOCAP_LABELS, "IEMOCAP (full$_R$, seed 42)"),
+        (axes[0], meld_cm_norm, MELD_LABELS, "MELD (Full stack, seed 42)"),
+        (axes[1], iemocap_cm_norm, IEMOCAP_LABELS, "IEMOCAP (Full stack, seed 42)"),
     ):
         im = ax.imshow(cm_norm, cmap="Blues", vmin=0, vmax=1)
         ax.set_xticks(range(len(labels)))
         ax.set_yticks(range(len(labels)))
-        ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=9)
-        ax.set_yticklabels(labels, fontsize=9)
-        ax.set_xlabel("Predicted")
-        ax.set_ylabel("True")
-        ax.set_title(title, fontsize=11)
+        ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=10)
+        ax.set_yticklabels(labels, fontsize=10)
+        ax.set_xlabel("Predicted", fontsize=11)
+        ax.set_ylabel("True", fontsize=11)
+        ax.set_title(title, fontsize=13)
         for i in range(cm_norm.shape[0]):
             for j in range(cm_norm.shape[1]):
                 ax.text(
                     j, i, f"{cm_norm[i, j]:.2f}", ha="center", va="center",
-                    color="white" if cm_norm[i, j] > 0.5 else "black", fontsize=7,
+                    color="white" if cm_norm[i, j] > 0.5 else "black", fontsize=8,
                 )
+    fig.subplots_adjust(wspace=0.45)
     fig.colorbar(im, ax=axes, label="Row-normalized (recall within true class)", shrink=0.8)
-    fig.suptitle("Confusion matrices, matched [0,1] color scale (recall-normalized)", fontsize=12)
+    fig.suptitle("Confusion matrices, matched [0,1] color scale (recall-normalized)", fontsize=13)
 
     for ext in ("pdf", "png"):
         fig_path = FIGURES_DIR / f"confusion_matrices.{ext}"

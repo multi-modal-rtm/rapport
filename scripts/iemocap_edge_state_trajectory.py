@@ -116,7 +116,7 @@ def main() -> None:
                 linewidth=1.5, label=f"dialogue_id={did} (n={len(norms)} turns)")
     ax.set_xlabel("Edge update index (dialogue time, one per speaking turn)")
     ax.set_ylabel("Edge-state ||e_sj|| (L2 norm)")
-    ax.set_title("IEMOCAP full_R_iemocap_seed42: dyadic edge-state norm over dialogue time\n(3 longest Session5/test dialogues)", fontsize=11)
+    ax.set_title("IEMOCAP Full stack, seed 42: dyadic edge-state norm over dialogue time\n(3 longest Session 5/test dialogues)", fontsize=11)
     ax.legend(loc="best", frameon=True, fontsize=9)
     ax.grid(True, alpha=0.25, linewidth=0.5)
     for spine in ("top", "right"):
