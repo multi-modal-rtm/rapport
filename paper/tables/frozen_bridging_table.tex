@@ -1,14 +1,14 @@
 \begin{table*}[t]
 \centering
-\caption{Frozen-regime bridging experiment: paired per-seed gain, full\_R\_frozen minus the frozen text anchor, under the identical residual apparatus as the fine-tuned end.}
+\caption{Frozen-regime bridging experiment: paired per-seed gain, Full stack (frozen) minus the frozen Text-only anchor, under the identical residual apparatus used for the fine-tuned foundation.}
 \label{tab:frozen-bridging}
 \begin{tabular}{lccc}
 \toprule
 config & test weighted F1 & paired gain vs.\ anchor & n seeds \\
 \midrule
-frozen text anchor (seed 42) & 0.4416 & -- & 1 \\
-base\_fusion\_R\_frozen & 0.5290 $\pm$ 0.0013 & -- & 3 \\
-full\_R\_frozen & 0.4773 $\pm$ 0.0106 & +0.0356 $\pm$ 0.0106 & 3 \\
+Text-only anchor (frozen, seed 42) & 0.4416 & -- & 1 \\
+Fusion (frozen) & 0.5290 $\pm$ 0.0013 & -- & 3 \\
+Full stack (frozen) & 0.4773 $\pm$ 0.0106 & +0.0356 $\pm$ 0.0106 & 3 \\
 \bottomrule
 \end{tabular}
 \end{table*}

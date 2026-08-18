@@ -1,35 +1,58 @@
-\begin{table}[t]
+\begin{table*}[t]
 \centering
 \caption{Per-seed appendix: raw test weighted F1 for every run cited in the main tables.}
 \label{tab:per-seed-appendix}
-\begin{tabular}{llc}
+\begin{minipage}{0.48\textwidth}
+\centering
+\small
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{p{3.5cm}lc}
 \toprule
 config & seed & test weighted F1 \\
 \midrule
-MELD text anchor & 42 & 0.6353 \\
+MELD Text-only anchor & 42 & 0.6353 \\
  & 1337 & 0.6441 \\
  & 2024 & 0.6415 \\
-MELD full\_R (k=8) & 42 & 0.6374 \\
+\addlinespace
+MELD Full stack (k=8) & 42 & 0.6374 \\
  & 1337 & 0.6273 \\
  & 2024 & 0.6384 \\
-MELD minus\_relational\_R & 42 & 0.6380 \\
+\addlinespace
+MELD Full stack (no relational) & 42 & 0.6380 \\
  & 1337 & 0.6388 \\
  & 2024 & 0.6329 \\
-MELD base\_fusion\_R & 42 & 0.6379 \\
+\addlinespace
+MELD Fusion & 42 & 0.6379 \\
  & 1337 & 0.6399 \\
  & 2024 & 0.6398 \\
-IEMOCAP text anchor & 42 & 0.5815 \\
+\bottomrule
+\end{tabular}
+\end{minipage}%
+\hfill
+\begin{minipage}{0.48\textwidth}
+\centering
+\small
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{p{3.5cm}lc}
+\toprule
+config & seed & test weighted F1 \\
+\midrule
+IEMOCAP Text-only anchor & 42 & 0.5815 \\
  & 1337 & 0.5939 \\
  & 2024 & 0.5618 \\
-IEMOCAP full\_R & 42 & 0.5881 \\
+\addlinespace
+IEMOCAP Full stack & 42 & 0.5881 \\
  & 1337 & 0.5832 \\
  & 2024 & 0.5881 \\
-IEMOCAP minus\_relational\_R & 42 & 0.6383 \\
+\addlinespace
+IEMOCAP Full stack (no relational) & 42 & 0.6383 \\
  & 1337 & 0.6326 \\
  & 2024 & 0.5887 \\
-IEMOCAP base\_fusion\_R & 42 & 0.5970 \\
+\addlinespace
+IEMOCAP Fusion & 42 & 0.5970 \\
  & 1337 & 0.6492 \\
  & 2024 & 0.6436 \\
 \bottomrule
 \end{tabular}
-\end{table}
+\end{minipage}
+\end{table*}

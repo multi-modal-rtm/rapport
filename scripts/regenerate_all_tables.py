@@ -52,6 +52,23 @@ def tex_escape(s: str) -> str:
     return s.replace("_", "\\_")
 
 
+def display_name(raw: str) -> str:
+    """Maps a raw Hydra config key to the reader-facing label used
+    consistently across every table and figure -- no raw key (full_R,
+    base_fusion_R, minus_relational_R, context_text_plain_ce,
+    iemocap_text_anchor, or any _iemocap/_frozen-suffixed variant of
+    these) may appear where a reader can see it."""
+    if raw in ("context_text_plain_ce", "iemocap_text_anchor", "text anchor"):
+        return "Text-only anchor"
+    if raw.startswith("minus_relational_R"):
+        return "Full stack (no relational)" + (" (frozen)" if raw.endswith("_frozen") else "")
+    if raw.startswith("base_fusion_R"):
+        return "Fusion" + (" (frozen)" if raw.endswith("_frozen") else "")
+    if raw.startswith("full_R"):
+        return "Full stack" + (" (frozen)" if raw.endswith("_frozen") else "")
+    return raw
+
+
 def load(run_name: str) -> dict:
     return json.loads((OUTPUTS_DIR / run_name / "metrics.json").read_text())
 
@@ -150,13 +167,13 @@ def table_b_frozen_bridging() -> None:
     pm, ps = data["paired_mean"], data["paired_std"]
 
     rows = [
-        ["frozen text anchor (seed 42)", f"{anchor:.4f}", "--", "1"],
-        ["base\\_fusion\\_R\\_frozen", f"{base['mean']:.4f} $\\pm$ {base['std']:.4f}", "--", str(base["n_seeds"])],
-        ["full\\_R\\_frozen", f"{full['mean']:.4f} $\\pm$ {full['std']:.4f}", f"{pm:+.4f} $\\pm$ {ps:.4f}", str(full["n_seeds"])],
+        ["Text-only anchor (frozen, seed 42)", f"{anchor:.4f}", "--", "1"],
+        [display_name("base_fusion_R_frozen"), f"{base['mean']:.4f} $\\pm$ {base['std']:.4f}", "--", str(base["n_seeds"])],
+        [display_name("full_R_frozen"), f"{full['mean']:.4f} $\\pm$ {full['std']:.4f}", f"{pm:+.4f} $\\pm$ {ps:.4f}", str(full["n_seeds"])],
     ]
     content = booktabs(
-        caption="Frozen-regime bridging experiment: paired per-seed gain, full\\_R\\_frozen minus the "
-        "frozen text anchor, under the identical residual apparatus as the fine-tuned end.",
+        caption="Frozen-regime bridging experiment: paired per-seed gain, Full stack (frozen) minus the "
+        "frozen Text-only anchor, under the identical residual apparatus used for the fine-tuned foundation.",
         label="tab:frozen-bridging",
         col_spec="lccc",
         header=["config", "test weighted F1", "paired gain vs.\\ anchor", "n seeds"],
@@ -185,19 +202,20 @@ def table_c_scratch_vs_residual() -> None:
     rb_m, rb_s = mean_std(residual_base)
 
     rows = [
-        ["baseline (fusion only)", f"{sb_m:.4f} $\\pm$ {sb_s:.4f}", f"{rb_m:.4f} $\\pm$ {rb_s:.4f}"],
-        ["full stack", f"{sf_m:.4f} $\\pm$ {sf_s:.4f}", f"{rf_m:.4f} $\\pm$ {rf_s:.4f}"],
-        ["gap (full $-$ baseline)", f"{scratch_gap:+.4f}", f"{residual_gap:+.4f}"],
+        ["Fusion", f"{sb_m:.4f} $\\pm$ {sb_s:.4f}", f"{rb_m:.4f} $\\pm$ {rb_s:.4f}"],
+        ["Full stack", f"{sf_m:.4f} $\\pm$ {sf_s:.4f}", f"{rf_m:.4f} $\\pm$ {rf_s:.4f}"],
+        ["gap (Full stack $-$ Fusion)", f"{scratch_gap:+.4f}", f"{residual_gap:+.4f}"],
     ]
     content = booktabs(
-        caption=f"MELD, fine-tuned foundation: scratch retraining (N4) vs.\\ residual attribution (N4-R). "
+        caption=f"MELD, fine-tuned foundation: scratch retraining vs.\\ residual attribution. "
         f"The full-stack deficit shrinks {shrinkage_pct:.0f}\\% under residual attribution.",
         label="tab:scratch-vs-residual",
         col_spec="lcc",
-        header=["", "scratch (N4)", "residual (N4-R)"],
+        header=["", "scratch retraining", "residual attribution"],
         rows=rows,
         source="Source: outputs/\\{full,base\\_fusion\\}\\_seed\\{42,1337,2024\\}/metrics.json (scratch), "
         "outputs/\\{full\\_R,base\\_fusion\\_R\\}\\_seed\\{42,1337,2024\\}/metrics.json (residual).",
+        wide=True,  # "gap (Full stack $-$ Fusion)" row label overflows a single IEEEtran column
     )
     write("meld_scratch_vs_residual.tex", content)
 
@@ -212,7 +230,7 @@ def table_d_k_sweep_endpoints() -> None:
         p = paired[k]
         rows.append([f"$k={k}$", str(p["n_pairs"]), f"{p['mean']:+.4f} $\\pm$ {p['std']:.4f}", str(abs(p["mean"]) > p["std"])])
     content = booktabs(
-        caption="Context-window ($k$) sweep, MELD: paired per-seed gain (full\\_R $-$ text anchor) "
+        caption="Context-window ($k$) sweep, MELD: paired per-seed gain (Full stack $-$ Text-only anchor) "
         "at the powered endpoints.",
         label="tab:k-sweep-endpoints",
         col_spec="lccc",
@@ -243,11 +261,11 @@ def table_e_iemocap_decisive() -> None:
     (mg1m, mg1s), (mg2m, mg2s) = gains(meld_anchor, meld_full, meld_minus_rel, MELD_SEEDS)
 
     rows = [
-        ["full\\_R $-$ text anchor", f"{ig1m:+.4f} $\\pm$ {ig1s:.4f}", f"{mg1m:+.4f} $\\pm$ {mg1s:.4f}"],
-        ["full\\_R $-$ minus\\_relational\\_R", f"{ig2m:+.4f} $\\pm$ {ig2s:.4f}", f"{mg2m:+.4f} $\\pm$ {mg2s:.4f}"],
+        ["Full stack $-$ Text-only anchor", f"{ig1m:+.4f} $\\pm$ {ig1s:.4f}", f"{mg1m:+.4f} $\\pm$ {mg1s:.4f}"],
+        ["Full stack $-$ Full stack (no relational)", f"{ig2m:+.4f} $\\pm$ {ig2s:.4f}", f"{mg2m:+.4f} $\\pm$ {mg2s:.4f}"],
     ]
     content = booktabs(
-        caption="IEMOCAP pre-registered trial (Phase N5-B, Step B5) vs.\\ MELD, matched attribution "
+        caption="IEMOCAP pre-registered trial vs.\\ MELD, matched attribution "
         "methodology, $n{=}3$ seeds each.",
         label="tab:iemocap-decisive",
         col_spec="lcc",
@@ -289,7 +307,7 @@ def table_f_per_class(corpus: str) -> None:
         row = [cls_label] + [f"{per_config_mean[cfg][cls]:.3f}" for cfg in configs]
         rows.append(row)
 
-    header = ["class"] + [c.replace("_", "\\_") for c in configs]
+    header = ["class"] + [display_name(c) for c in configs]
     content = booktabs(
         caption=f"Per-class test F1 (mean of {len(seeds)} seeds), {corpus.upper()}. "
         f"{'Rare classes' if corpus == 'meld' else 'Pre-registered best-case class'} in \\textbf{{bold}}.",
@@ -305,31 +323,70 @@ def table_f_per_class(corpus: str) -> None:
 
 # ---------------------------------------------------------------- (g) ----
 def table_g_per_seed_appendix() -> None:
-    groups = [
-        ("MELD text anchor", [f"context_text_plain_ce_seed{s}" for s in MELD_SEEDS]),
-        ("MELD full\\_R (k=8)", [f"full_R_seed{s}" for s in MELD_SEEDS]),
-        ("MELD minus\\_relational\\_R", [f"minus_relational_R_seed{s}" for s in MELD_SEEDS]),
-        ("MELD base\\_fusion\\_R", [f"base_fusion_R_seed{s}" for s in MELD_SEEDS]),
-        ("IEMOCAP text anchor", [f"iemocap_text_anchor_seed{s}" for s in IEMOCAP_SEEDS]),
-        ("IEMOCAP full\\_R", [f"full_R_iemocap_seed{s}" for s in IEMOCAP_SEEDS]),
-        ("IEMOCAP minus\\_relational\\_R", [f"minus_relational_R_iemocap_seed{s}" for s in IEMOCAP_SEEDS]),
-        ("IEMOCAP base\\_fusion\\_R", [f"base_fusion_R_iemocap_seed{s}" for s in IEMOCAP_SEEDS]),
+    # Display names match the convention used in every other table
+    # (full_R (k=8) -> "Full stack (k=8)"; plain full_R -> "Full stack",
+    # since IEMOCAP has no k-sweep to disambiguate; minus_relational_R ->
+    # "Full stack (no relational)"; base_fusion_R -> "Fusion"; text
+    # anchor -> "Text-only anchor"), each still corpus-prefixed.
+    meld_groups = [
+        ("MELD Text-only anchor", [f"context_text_plain_ce_seed{s}" for s in MELD_SEEDS]),
+        ("MELD Full stack (k=8)", [f"full_R_seed{s}" for s in MELD_SEEDS]),
+        ("MELD Full stack (no relational)", [f"minus_relational_R_seed{s}" for s in MELD_SEEDS]),
+        ("MELD Fusion", [f"base_fusion_R_seed{s}" for s in MELD_SEEDS]),
     ]
-    rows = []
-    for label, run_names in groups:
-        for run_name in run_names:
-            seed = load(run_name)["seed"]
-            rows.append([label, str(seed), f"{wf1(run_name):.4f}"])
-            label = ""  # only print the group label once
-    content = booktabs(
-        caption="Per-seed appendix: raw test weighted F1 for every run cited in the main tables.",
-        label="tab:per-seed-appendix",
-        col_spec="llc",
-        header=["config", "seed", "test weighted F1"],
-        rows=rows,
-        source="Source: every outputs/*/metrics.json referenced by tables (c)-(e).",
-    )
-    write("per_seed_appendix.tex", content)
+    iemocap_groups = [
+        ("IEMOCAP Text-only anchor", [f"iemocap_text_anchor_seed{s}" for s in IEMOCAP_SEEDS]),
+        ("IEMOCAP Full stack", [f"full_R_iemocap_seed{s}" for s in IEMOCAP_SEEDS]),
+        ("IEMOCAP Full stack (no relational)", [f"minus_relational_R_iemocap_seed{s}" for s in IEMOCAP_SEEDS]),
+        ("IEMOCAP Fusion", [f"base_fusion_R_iemocap_seed{s}" for s in IEMOCAP_SEEDS]),
+    ]
+
+    def block_rows(groups: list[tuple[str, list[str]]]) -> list[str]:
+        lines = [r"\toprule", r"config & seed & test weighted F1 \\", r"\midrule"]
+        for gi, (label, run_names) in enumerate(groups):
+            if gi > 0:
+                lines.append(r"\addlinespace")
+            for run_name in run_names:
+                seed = load(run_name)["seed"]
+                lines.append(rf"{label} & {seed} & {wf1(run_name):.4f} \\")
+                label = ""  # only print the group label once
+        lines.append(r"\bottomrule")
+        return lines
+
+    # \small, a tighter \tabcolsep, and a fixed-width first column: the
+    # corpus-prefixed display labels ("IEMOCAP Full stack (no relational)")
+    # are wider than the raw config-key labels this table used to show. A
+    # plain "l" column never wraps, so it overflowed the 0.48\textwidth
+    # minipage; p{2.6cm} fixed that but wrapped even short labels onto
+    # three lines, ballooning the table's height enough to push the
+    # references onto a new page. p{3.5cm} keeps every label at one line
+    # except the single longest ("...(no relational)"), which wraps to
+    # two -- back to roughly the original row height.
+    col_spec = r"p{3.5cm}lc"
+    preamble = [r"\small", r"\setlength{\tabcolsep}{3.5pt}"]
+    meld_tabular = "\n".join(preamble + [rf"\begin{{tabular}}{{{col_spec}}}"] + block_rows(meld_groups) + [r"\end{tabular}"])
+    iemocap_tabular = "\n".join(preamble + [rf"\begin{{tabular}}{{{col_spec}}}"] + block_rows(iemocap_groups) + [r"\end{tabular}"])
+
+    source = "" if PAPER_MODE else "Source: every outputs/*/metrics.json referenced by tables (c)-(e)."
+    lines = [
+        r"\begin{table*}[t]",
+        r"\centering",
+        r"\caption{Per-seed appendix: raw test weighted F1 for every run cited in the main tables.}",
+        r"\label{tab:per-seed-appendix}",
+        r"\begin{minipage}{0.48\textwidth}",
+        r"\centering",
+        meld_tabular,
+        r"\end{minipage}%",
+        r"\hfill",
+        r"\begin{minipage}{0.48\textwidth}",
+        r"\centering",
+        iemocap_tabular,
+        r"\end{minipage}",
+    ]
+    if source:
+        lines.append(rf"\par\footnotesize {source}")
+    lines.append(r"\end{table*}")
+    write("per_seed_appendix.tex", "\n".join(lines) + "\n")
 
 
 def main() -> None:
