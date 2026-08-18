@@ -158,6 +158,7 @@ def train(
     run_dir: Path,
     residual: bool = False,
     text_cache_subdir: str = "text_ctx",
+    residual_init_scale: float = 0.0,
 ) -> dict:
     run_dir.mkdir(parents=True, exist_ok=True)
     set_seed(seed)
@@ -171,6 +172,7 @@ def train(
         temporal=temporal,
         residual=residual,
         dropout=DROPOUT,
+        residual_init_scale=residual_init_scale,
     ).to(device)
 
     optimizer = AdamW(model.parameters(), lr=LR)
@@ -194,6 +196,13 @@ def train(
     epochs_without_improvement = 0
     epoch_times: list[float] = []
     history: list[dict] = []
+    # REVIEWER-RESPONSE instrumentation (Major Concern #2): grad norms on
+    # W_out (classifier) and the A/V fusion blocks, captured pre-clip on the
+    # first few epoch-0 batches only, to verify gradients reach these
+    # residual-zero-initialized params from the very first step regardless
+    # of residual_init_scale -- negligible overhead, epoch 0 only.
+    epoch0_grad_norms: list[dict] = []
+    GRAD_NORM_CAPTURE_BATCHES = 5
 
     for epoch in range(MAX_EPOCHS):
         start = time.time()
@@ -216,6 +225,19 @@ def train(
                         shift_loss = shift_criterion(shift_logits[shift_valid], batch["shift_label"][shift_valid])
                         loss = loss + SHIFT_LOSS_WEIGHT * shift_loss
             loss.backward()
+            if epoch == 0 and n_batches < GRAD_NORM_CAPTURE_BATCHES:
+                with torch.no_grad():
+                    w_out_grad = model.classifier.weight.grad
+                    fusion_av_grad = model.fusion[0].weight.grad[:, RapportModel.FEATURE_DIM :]
+                    total_grad = torch.cat([p.grad.reshape(-1) for p in model.parameters() if p.grad is not None])
+                    epoch0_grad_norms.append(
+                        {
+                            "batch": n_batches,
+                            "w_out_grad_norm": float(w_out_grad.norm().item()) if w_out_grad is not None else None,
+                            "fusion_av_grad_norm": float(fusion_av_grad.norm().item()) if fusion_av_grad is not None else None,
+                            "total_grad_norm": float(total_grad.norm().item()),
+                        }
+                    )
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=GRAD_CLIP)
             optimizer.step()
             total_loss += loss.item()
@@ -284,6 +306,8 @@ def train(
             "shift": shift,
             "temporal": temporal,
             "residual": residual,
+            "residual_init_scale": residual_init_scale,
+            "epoch0_grad_norms": epoch0_grad_norms,
             "test_weighted_f1": test_weighted_f1,
             "test_macro_f1": test_macro_f1,
             "test_shift_f1": test_shift_f1,
@@ -317,12 +341,20 @@ def main() -> None:
         default="text_ctx",
         help="Override the text_ctx cache subdir (e.g. text_ctx_k0 for the Phase N4-R Step 2 redundancy probe).",
     )
+    parser.add_argument(
+        "--residual_init_scale",
+        type=float,
+        default=0.0,
+        help="Reviewer-response control (Major Concern #2): >0 replaces W_out/A-V-fusion exact-zero-init "
+        "with N(0, scale^2). Default 0.0 is the original spec v1.1 exact-zero behavior, unchanged.",
+    )
     args = parser.parse_args()
 
     run_dir = PROJECT_ROOT / "outputs" / args.run_name
     report = train(
         args.seed, args.relational, args.shift, args.temporal, run_dir,
         residual=args.residual, text_cache_subdir=args.text_cache_subdir,
+        residual_init_scale=args.residual_init_scale,
     )
     print(
         f"[done] run_name={args.run_name} test_weighted_f1={report['test_weighted_f1']:.4f} "

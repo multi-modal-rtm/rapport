@@ -61,6 +61,7 @@ class RapportModel(nn.Module):
         residual: bool = False,
         gat_heads: int = 4,
         dropout: float = 0.5,
+        residual_init_scale: float = 0.0,
     ):
         super().__init__()
         self.relational = relational
@@ -68,6 +69,15 @@ class RapportModel(nn.Module):
         self.temporal = temporal
         self.residual = residual
         self.num_classes = num_classes
+        # REVIEWER-RESPONSE control (Major Concern #2): residual_init_scale=0.0
+        # (default) is IDENTICAL to the original spec v1.1 behavior below --
+        # exact zero-init of W_out and the A/V fusion blocks. A positive value
+        # instead draws those same parameters from N(0, residual_init_scale^2),
+        # to test whether exact-zero-init under-credits the graph stack via
+        # early-epoch gradient starvation / a degenerate local minimum, as
+        # opposed to the components genuinely having no value on a fine-tuned
+        # foundation. Nothing else about the model changes.
+        self.residual_init_scale = residual_init_scale
 
         self.fusion = nn.Sequential(
             nn.Linear(3 * self.FEATURE_DIM, self.FUSION_DIM),
@@ -80,7 +90,10 @@ class RapportModel(nn.Module):
             # NOT zeroed (it isn't tied to any one modality); recorded in
             # docs/SPEC_RAPPORT_COMPONENTS.md's Implementation decisions.
             with torch.no_grad():
-                self.fusion[0].weight[:, self.FEATURE_DIM :].zero_()
+                if residual_init_scale > 0:
+                    self.fusion[0].weight[:, self.FEATURE_DIM :].normal_(mean=0.0, std=residual_init_scale)
+                else:
+                    self.fusion[0].weight[:, self.FEATURE_DIM :].zero_()
 
         self.dropout = nn.Dropout(dropout)
 
@@ -110,8 +123,14 @@ class RapportModel(nn.Module):
             # the cached Phase T logits, regardless of relational/shift/
             # temporal or of anything upstream (the rest of the stack can
             # be arbitrarily random at init; W_out=0 erases it entirely).
-            nn.init.zeros_(self.classifier.weight)
-            nn.init.zeros_(self.classifier.bias)
+            # residual_init_scale > 0 (control condition, see above)
+            # replaces the exact zero with small-scale random noise instead.
+            if residual_init_scale > 0:
+                nn.init.normal_(self.classifier.weight, mean=0.0, std=residual_init_scale)
+                nn.init.normal_(self.classifier.bias, mean=0.0, std=residual_init_scale)
+            else:
+                nn.init.zeros_(self.classifier.weight)
+                nn.init.zeros_(self.classifier.bias)
 
         if shift:
             # B3: single-logit linear head on the RAW node state h_{s,t} --

@@ -35,7 +35,7 @@ def figure_a_k_sweep() -> None:
     # anchor) at each context width, matching what the caption and body
     # text describe and what tab:k-sweep-endpoints reports -- not the raw
     # per-config weighted F1. Endpoints (k=0, k=8) use the multi-seed
-    # paired series (paired_n7_test, n=5/n=7) with error bars; interior
+    # paired series (paired_n7_test, n=7/n=7) with error bars; interior
     # points (k=2, k=4) use the single-seed gain_table entries as trend
     # indicators only, de-emphasized (no error bar, lighter marker).
     data = json.loads((OUTPUTS_DIR / "subsumption_curve_data.json").read_text())

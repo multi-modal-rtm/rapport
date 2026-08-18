@@ -7,11 +7,15 @@ derived from data, but kept here so the whole doc regenerates from one
 script per its own Reproducibility promise).
 
 n=7 consolidation: k=0/k=8 endpoints use 7 seeds (42, 1337, 2024, 7, 123,
-555, 9090) for full_R ("the graph config") at both endpoints and for the
-text anchor at k=8. The k=0 text anchor was seed-42-only in the original
-design and only gained the 4 new seeds {7,123,555,9090} here, so it's
-n=5, not n=7 (see K0_TEXT_ANCHOR_SEEDS). base_fusion_R stays at 3 seeds
-(not powered up); k=2/k=4 remain single-seed (42 only).
+555, 9090) for full_R ("the graph config") AND the text anchor, at BOTH
+endpoints (see K0_TEXT_ANCHOR_SEEDS). The k=0 text anchor was originally
+seed-42-only, then powered to n=5 with 4 new seeds {7,123,555,9090},
+leaving an asymmetric n=5-vs-n=7 endpoint pair flagged as ad-hoc in
+external review; the two still-missing seeds (1337, 2024) -- which
+already had a full_R_k0 downstream run each but no matching k=0
+text-encoder retrain -- were trained here, bringing k=0 to n=7 as well.
+base_fusion_R stays at 3 seeds (not powered up); k=2/k=4 remain
+single-seed (42 only).
 
 Usage:
     uv run python -m scripts.report_subsumption_curve
@@ -34,14 +38,16 @@ DOCS_DIR = PROJECT_ROOT / "docs"
 
 K_VALUES = [0, 2, 4, 8]
 BASE_FUSION_SEEDS = (42, 1337, 2024)  # not powered up
-N7_SEEDS = (42, 1337, 2024, 7, 123, 555, 9090)  # full_R at both endpoints; text anchor at k=8
-# k=0 text anchor was seed-42-only in the original design (Step 1 scoped the
-# text-encoder retrain to seed 42 at every k except k=8). The consolidation
-# task added exactly 4 new seeds {7,123,555,9090} -- not 6 -- so k=0 text
-# anchor lands at n=5, not n=7. Only full_R (all downstream reruns on the
-# existing shared per-k cache) and the k=8 text anchor (which already had
-# 3 genuine encoder retrains from Phase T) reach n=7.
-K0_TEXT_ANCHOR_SEEDS = (42, 7, 123, 555, 9090)
+N7_SEEDS = (42, 1337, 2024, 7, 123, 555, 9090)  # full_R at both endpoints; text anchor at both endpoints
+# REVIEWER-RESPONSE (Minor Concern): the k=0 text anchor was originally
+# seed-42-only, then powered to n=5 (42,7,123,555,9090) -- an asymmetric
+# n=5/n=7 endpoint pair the reviewer flagged as ad-hoc. The two missing
+# seeds (1337, 2024) already had a full_R_k0 downstream run each (reused
+# from the original 3-seed convention) but no matching k=0 text-encoder
+# retrain; scripts.train_context_text was rerun for exactly those two
+# seeds (context_text_k0_seed1337, context_text_k0_seed2024) so the k=0
+# text anchor now also reaches n=7, matching k=8 exactly.
+K0_TEXT_ANCHOR_SEEDS = N7_SEEDS
 
 # BRIDGING EXPERIMENT (frozen-era end, same residual methodology as the
 # fine-tuned end above): scripts/train_frozen_text_foundation.py (anchor,
@@ -162,12 +168,10 @@ def main() -> None:
     endpoints_only_decreasing = gains[0] > gains[-1]
 
     # ---- PRE-REGISTERED test: paired (per-seed) full_R minus text-anchor, at k=0 and k=8.
-    # Paired over the INTERSECTION of seeds present in both series -- at k=8
-    # that's the full N7_SEEDS (7 pairs); at k=0 the text anchor only has 5
-    # distinct encoder retrains (K0_TEXT_ANCHOR_SEEDS), so seeds 1337/2024
-    # (which have a full_R downstream run but no matching k=0 text-anchor
-    # retrain under that seed label) are excluded rather than paired against
-    # a different seed's anchor value. This yields n=5 pairs at k=0, n=7 at k=8.
+    # Paired over the INTERSECTION of seeds present in both series -- now the
+    # full N7_SEEDS (7 pairs) at BOTH endpoints, since the k=0 text anchor's
+    # remaining two seeds (1337, 2024) were trained to close the reviewer-
+    # flagged n=5/n=7 asymmetry (see K0_TEXT_ANCHOR_SEEDS above).
     paired = {}
     for k in (0, 8):
         pair_seeds = sorted(set(full_r[k]["values"]) & set(text_anchor[k]["values"]))
@@ -248,15 +252,18 @@ def main() -> None:
         "(`docs/PHASE_N4R.md` spec v1.1). For k in {0, 2, 4, 8}: (1) retrained the "
         "Phase T text encoder end-to-end AT that k, caching its embeddings + own "
         "logits (`cache_version text_ctx_k{k}`); (2) trained `base_fusion_R` and "
-        "`full_R` on that cache; (3) at the endpoints k=0 and k=8, `full_R` "
-        "(\"the graph config\") was powered up to **n=7 seeds** at BOTH endpoints "
-        "(42, 1337, 2024, 7, 123, 555, 9090) -- all downstream reruns on the same "
-        "shared per-k cache, per the original 3-seed convention. The text anchor "
-        "reaches n=7 at k=8 (Phase T's existing 3 seeds + 4 new retrains) but only "
-        "**n=5 at k=0** (42, 7, 123, 555, 9090): the k=0 text anchor was seed-42-only "
-        "in the original design, and this consolidation pass added exactly the 4 "
-        "new seeds it was asked to add, not 6. `base_fusion_R` stays at n=3 "
-        "(seeds 42/1337/2024, not powered up in this consolidation pass).\n"
+        "`full_R` on that cache; (3) at the endpoints k=0 and k=8, both `full_R` "
+        "(\"the graph config\") AND the text anchor were powered up to "
+        "**n=7 seeds at BOTH endpoints** (42, 1337, 2024, 7, 123, 555, 9090). "
+        "`full_R` reruns are downstream reruns on the same shared per-k cache, "
+        "per the original 3-seed convention; the text anchor is a genuine "
+        "encoder retrain at each seed. The k=0 text anchor was originally "
+        "seed-42-only, then n=5 (missing seeds 1337/2024), an asymmetric "
+        "n=5-vs-n=7 endpoint pair flagged as ad-hoc in external review -- this "
+        "revision trains the two missing k=0 text-anchor seeds "
+        "(`context_text_k0_seed1337`, `context_text_k0_seed2024`) to close it. "
+        "`base_fusion_R` stays at n=3 (seeds 42/1337/2024, not powered up in "
+        "this consolidation pass).\n"
     )
     lines.append(fig_path.name and f"![subsumption curve]({fig_path.name})\n")
     lines.append(RECONCILIATION_SECTION)
@@ -281,12 +288,10 @@ def main() -> None:
 
     lines.append("## PRE-REGISTERED test: paired (per-seed) full_R − text anchor, at the endpoints\n")
     lines.append(
-        "Paired over the intersection of seeds present in both series. At k=8 "
-        "both series have all 7 seeds, so n_pairs=7. At k=0 the text anchor only "
-        "has 5 distinct encoder retrains (see above), so seeds 1337 and 2024 -- "
-        "which have a `full_R` downstream run but no matching k=0 text-anchor "
-        "retrain under that seed label -- are excluded rather than paired against "
-        "a different seed's anchor value, giving n_pairs=5 at k=0.\n"
+        "Paired over the intersection of seeds present in both series. Both "
+        "endpoints now have all 7 seeds in both series, so n_pairs=7 at k=0 "
+        "and k=8 alike -- closing the reviewer-flagged n=5-vs-n=7 asymmetry "
+        "this table previously had at k=0.\n"
     )
     lines.append("| k | n_pairs | per-seed diffs (seed: diff) | mean | std | |diff|>std? |")
     lines.append("|---|---|---|---|---|---|")
@@ -301,8 +306,7 @@ def main() -> None:
 
     lines.append("## PRE-REGISTERED DECISION (fixed before this result was computed)\n")
     lines.append(
-        f"Decided on the k=0 paired result at n_pairs={paired[0]['n_pairs']} (5, not 7 -- see the "
-        f"paired-test note above on why 1337/2024 are excluded at k=0).\n"
+        f"Decided on the k=0 paired result at n_pairs={paired[0]['n_pairs']}.\n"
     )
     if subsumption_confirmed:
         lines.append(
@@ -378,11 +382,11 @@ def main() -> None:
         f"{frozen_paired_mean:+.4f}±{frozen_paired_std:.4f} | {bridging_confirmed} |"
     )
     lines.append(
-        f"| fine-tuned (k=8) | full_R | 7 | {', '.join(f'{s}:{d:+.4f}' for s, d in paired[8]['diffs'].items())} | "
+        f"| fine-tuned (k=8) | full_R | {paired[8]['n_pairs']} | {', '.join(f'{s}:{d:+.4f}' for s, d in paired[8]['diffs'].items())} | "
         f"{paired[8]['mean']:+.4f}±{paired[8]['std']:.4f} | {abs(paired[8]['mean']) > paired[8]['std'] and paired[8]['mean'] > 0} |"
     )
     lines.append(
-        f"| fine-tuned (k=0) | full_R | 5 | {', '.join(f'{s}:{d:+.4f}' for s, d in paired[0]['diffs'].items())} | "
+        f"| fine-tuned (k=0) | full_R | {paired[0]['n_pairs']} | {', '.join(f'{s}:{d:+.4f}' for s, d in paired[0]['diffs'].items())} | "
         f"{k0_gain:+.4f}±{k0_std:.4f} | {subsumption_confirmed} |"
     )
     lines.append("")
@@ -420,8 +424,8 @@ def main() -> None:
     lines.append("|---|---|---|")
     lines.append(
         f"| Subsumption: graph's marginal value shrinks as text encoder gains its own context | "
-        f"paired full_R−anchor: k=0 {k0_gain:+.4f}±{k0_std:.4f} (n=5) vs k=8 "
-        f"{paired[8]['mean']:+.4f}±{paired[8]['std']:.4f} (n=7) | "
+        f"paired full_R−anchor: k=0 {k0_gain:+.4f}±{k0_std:.4f} (n={paired[0]['n_pairs']}) vs k=8 "
+        f"{paired[8]['mean']:+.4f}±{paired[8]['std']:.4f} (n={paired[8]['n_pairs']}) | "
         f"{'CONFIRMED at k=0' if subsumption_confirmed else 'NOT CONFIRMED -- k=0 also null'} |"
     )
     lines.append(

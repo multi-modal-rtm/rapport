@@ -41,7 +41,7 @@ literal `git clone` has neither. `paper_assets/results_archive/` is a
 (and the top-level derived JSONs `subsumption_curve_data.json`,
 `meld_probe_table.json`, `iemocap_edge_state_trajectory_data.json`,
 `confusion_matrices_raw.json`) that `scripts/regenerate_all_tables.py`
-and the figure scripts actually read** — 46 run directories, 992KB total,
+and the figure scripts actually read** — 52 run directories, 1.1MB total,
 no model weights, no cached features, no raw data. Copying it into
 `outputs/` before running the scripts is the one manual step a fresh
 clone needs; everything downstream of that copy is a pure function of

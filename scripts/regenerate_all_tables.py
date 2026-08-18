@@ -237,7 +237,6 @@ def table_d_k_sweep_endpoints() -> None:
         header=["endpoint", "$n$ pairs", "paired gain", "$|$gain$|>$std"],
         rows=rows,
         source="Source: outputs/subsumption\\_curve\\_data.json['paired\\_n7\\_test'] (docs/PHASE\\_N5A.md).",
-        remark="$k=0$ text anchor is $n{=}5$, not $n{=}7$.",
     )
     write("k_sweep_endpoints.tex", content)
 
