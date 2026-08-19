@@ -159,6 +159,7 @@ def train(
     residual: bool = False,
     text_cache_subdir: str = "text_ctx",
     residual_init_scale: float = 0.0,
+    text_feature_dim: int = 768,
 ) -> dict:
     run_dir.mkdir(parents=True, exist_ok=True)
     set_seed(seed)
@@ -173,6 +174,7 @@ def train(
         residual=residual,
         dropout=DROPOUT,
         residual_init_scale=residual_init_scale,
+        text_feature_dim=text_feature_dim,
     ).to(device)
 
     optimizer = AdamW(model.parameters(), lr=LR)
@@ -307,6 +309,7 @@ def train(
             "temporal": temporal,
             "residual": residual,
             "residual_init_scale": residual_init_scale,
+            "text_feature_dim": text_feature_dim,
             "epoch0_grad_norms": epoch0_grad_norms,
             "test_weighted_f1": test_weighted_f1,
             "test_macro_f1": test_macro_f1,
@@ -348,13 +351,20 @@ def main() -> None:
         help="Reviewer-response control (Major Concern #2): >0 replaces W_out/A-V-fusion exact-zero-init "
         "with N(0, scale^2). Default 0.0 is the original spec v1.1 exact-zero behavior, unchanged.",
     )
+    parser.add_argument(
+        "--text_feature_dim",
+        type=int,
+        default=768,
+        help="Second-encoder replication (docs/PREREG_DeBERTa-v3-large.md): width of the cached text_feat "
+        "vector, e.g. 1024 for DeBERTa-v3-large. Default 768 is every existing RoBERTa-base config, unchanged.",
+    )
     args = parser.parse_args()
 
     run_dir = PROJECT_ROOT / "outputs" / args.run_name
     report = train(
         args.seed, args.relational, args.shift, args.temporal, run_dir,
         residual=args.residual, text_cache_subdir=args.text_cache_subdir,
-        residual_init_scale=args.residual_init_scale,
+        residual_init_scale=args.residual_init_scale, text_feature_dim=args.text_feature_dim,
     )
     print(
         f"[done] run_name={args.run_name} test_weighted_f1={report['test_weighted_f1']:.4f} "

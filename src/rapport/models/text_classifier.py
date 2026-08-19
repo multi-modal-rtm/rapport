@@ -50,14 +50,43 @@ class ContextTextClassifier(nn.Module):
     every other RoBERTa parameter is frozen by `get_peft_model`.
     """
 
-    def __init__(self, num_classes: int, model_name: str = "roberta-base"):
+    def __init__(
+        self,
+        num_classes: int,
+        model_name: str = "roberta-base",
+        lora_target_modules: list[str] | None = None,
+    ):
+        """`lora_target_modules` defaults to `LORA_TARGET_MODULES` (RoBERTa's
+        `[query, value]`) -- byte-identical to the original single-encoder
+        behavior. Pass an override for encoder families whose attention
+        projections use different names (e.g. DeBERTa-v3's
+        `[query_proj, value_proj]` -- second-encoder replication,
+        docs/PREREG_DeBERTa-v3-large.md).
+
+        `add_pooling_layer=False` is a RoBERTa/BERT-family-only constructor
+        kwarg (there is no pooler to disable on encoders that never had one,
+        e.g. DeBERTaV2Model) -- passed only when the base model accepts it.
+
+        `torch_dtype=torch.float32` is pinned explicitly: some checkpoints
+        (verified for `microsoft/deberta-v3-large`, not an issue for
+        `roberta-base`) ship their weights natively in fp16, which this
+        transformers version loads as-is unless told otherwise -- silently
+        producing a fp16 base model whose forward pass then dtype-mismatches
+        against the fp32 LoRA adapters/classifier head. Pinning fp32 here
+        keeps every encoder on the same footing this codebase already
+        assumes elsewhere (bf16 autocast over an fp32 base, everywhere else
+        in this repo).
+        """
         super().__init__()
-        base = AutoModel.from_pretrained(model_name, add_pooling_layer=False)
+        try:
+            base = AutoModel.from_pretrained(model_name, add_pooling_layer=False, torch_dtype=torch.float32)
+        except TypeError:
+            base = AutoModel.from_pretrained(model_name, torch_dtype=torch.float32)
         lora_config = LoraConfig(
             r=LORA_R,
             lora_alpha=LORA_ALPHA,
             lora_dropout=LORA_DROPOUT,
-            target_modules=LORA_TARGET_MODULES,
+            target_modules=lora_target_modules or LORA_TARGET_MODULES,
             bias="none",
         )
         self.encoder = get_peft_model(base, lora_config)

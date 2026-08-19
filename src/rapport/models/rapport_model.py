@@ -62,6 +62,7 @@ class RapportModel(nn.Module):
         gat_heads: int = 4,
         dropout: float = 0.5,
         residual_init_scale: float = 0.0,
+        text_feature_dim: int = 768,
     ):
         super().__init__()
         self.relational = relational
@@ -69,6 +70,12 @@ class RapportModel(nn.Module):
         self.temporal = temporal
         self.residual = residual
         self.num_classes = num_classes
+        # Second-encoder replication (docs/PREREG_DeBERTa-v3-large.md): the
+        # text modality's feature width, independent of FEATURE_DIM (which
+        # stays the fixed 768 of the frozen A/V backbones -- unaffected by
+        # which text encoder produced text_feat). Default 768 reproduces
+        # every existing RoBERTa-base config's fusion layer bit-for-bit.
+        self.text_feature_dim = text_feature_dim
         # REVIEWER-RESPONSE control (Major Concern #2): residual_init_scale=0.0
         # (default) is IDENTICAL to the original spec v1.1 behavior below --
         # exact zero-init of W_out and the A/V fusion blocks. A positive value
@@ -80,7 +87,7 @@ class RapportModel(nn.Module):
         self.residual_init_scale = residual_init_scale
 
         self.fusion = nn.Sequential(
-            nn.Linear(3 * self.FEATURE_DIM, self.FUSION_DIM),
+            nn.Linear(self.text_feature_dim + 2 * self.FEATURE_DIM, self.FUSION_DIM),
             nn.ReLU(),
         )
         if residual:
@@ -89,11 +96,15 @@ class RapportModel(nn.Module):
             # (text_ctx's block keeps the default Linear init). Bias is
             # NOT zeroed (it isn't tied to any one modality); recorded in
             # docs/SPEC_RAPPORT_COMPONENTS.md's Implementation decisions.
+            # Column layout is [text_feature_dim | FEATURE_DIM | FEATURE_DIM]
+            # (text, audio, video, matching forward()'s cat order) -- only
+            # the audio/video block (columns text_feature_dim: onward) is
+            # zeroed, regardless of the text encoder's own width.
             with torch.no_grad():
                 if residual_init_scale > 0:
-                    self.fusion[0].weight[:, self.FEATURE_DIM :].normal_(mean=0.0, std=residual_init_scale)
+                    self.fusion[0].weight[:, self.text_feature_dim :].normal_(mean=0.0, std=residual_init_scale)
                 else:
-                    self.fusion[0].weight[:, self.FEATURE_DIM :].zero_()
+                    self.fusion[0].weight[:, self.text_feature_dim :].zero_()
 
         self.dropout = nn.Dropout(dropout)
 

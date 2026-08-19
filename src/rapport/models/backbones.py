@@ -27,7 +27,7 @@ from __future__ import annotations
 import torch
 import torch.nn as nn
 from torchvision.models.video import MViT_V2_S_Weights, mvit_v2_s
-from transformers import RobertaModel, Wav2Vec2Model
+from transformers import AutoModel, RobertaModel, Wav2Vec2Model
 
 
 def _freeze(module: nn.Module) -> None:
@@ -139,6 +139,47 @@ class RobertaBackbone(nn.Module):
         self, input_ids: torch.Tensor, attention_mask: torch.Tensor | None = None
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """input_ids: [B, L] -> pooled [B, 768] (masked mean, 2nd-to-last layer), tokens [B, L, 768]."""
+        outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, output_hidden_states=True)
+        tokens = outputs.hidden_states[-2]
+
+        if attention_mask is not None:
+            mask = attention_mask.unsqueeze(-1).to(tokens.dtype)
+            pooled = (tokens * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1)
+        else:
+            pooled = tokens.mean(dim=1)
+        return pooled, tokens
+
+
+class DebertaV2Backbone(nn.Module):
+    """Second-encoder replication (docs/PREREG_DeBERTa-v3-large.md): frozen
+    `microsoft/deberta-v3-large` feature extractor, mirroring
+    `RobertaBackbone`'s masked-mean-over-second-to-last-layer pooling exactly
+    -- same rationale (`docs/DIAGNOSIS.md`: the final layer of a frozen
+    masked-LM is somewhat over-specialized to the MLM objective), same
+    frozen-feature-extraction role, different (and larger) base model.
+
+    DeBERTaV2Model has no `pooler_output`/`add_pooling_layer` concept at all
+    (unlike RobertaModel), so there is no equivalent randomly-initialized-
+    pooler hazard to avoid here -- second-to-last-layer masked mean is used
+    for parity with the frozen RoBERTa anchor's established convention, not
+    because DeBERTa has the same pooler problem.
+    """
+
+    OUTPUT_DIM = 1024
+
+    def __init__(self, model_name: str = "microsoft/deberta-v3-large"):
+        super().__init__()
+        # torch_dtype=torch.float32 pinned explicitly -- this checkpoint
+        # ships natively in fp16 (verified directly), which would otherwise
+        # silently produce fp16 pooled features inconsistent with the fp32
+        # linear-probe head trained on top of them.
+        self.model = AutoModel.from_pretrained(model_name, torch_dtype=torch.float32)
+        _freeze(self.model)
+
+    def forward(
+        self, input_ids: torch.Tensor, attention_mask: torch.Tensor | None = None
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """input_ids: [B, L] -> pooled [B, 1024] (masked mean, 2nd-to-last layer), tokens [B, L, 1024]."""
         outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, output_hidden_states=True)
         tokens = outputs.hidden_states[-2]
 
