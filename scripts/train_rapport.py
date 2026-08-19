@@ -71,6 +71,7 @@ def build_dataloaders(
     batch_size: int = BATCH_SIZE,
     num_workers: int = NUM_WORKERS,
     text_cache_subdir: str = "text_ctx",
+    text_feature_dim: int = 768,
 ) -> dict[str, DataLoader]:
     processed_dir = PROJECT_ROOT / "data" / "meld" / "processed"
     cache_dir = PROJECT_ROOT / "data" / "meld" / "cache"
@@ -82,6 +83,7 @@ def build_dataloaders(
             text_cache_subdir=text_cache_subdir,
             load_av_tokens=temporal,
             load_text_logits=residual,
+            text_feature_dim=text_feature_dim,
         )
         loaders[split] = DataLoader(
             dataset,
@@ -165,7 +167,9 @@ def train(
     set_seed(seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    loaders = build_dataloaders(temporal=temporal, residual=residual, text_cache_subdir=text_cache_subdir)
+    loaders = build_dataloaders(
+        temporal=temporal, residual=residual, text_cache_subdir=text_cache_subdir, text_feature_dim=text_feature_dim
+    )
     model = RapportModel(
         num_classes=NUM_CLASSES,
         relational=relational,

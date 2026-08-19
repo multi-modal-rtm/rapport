@@ -1,0 +1,96 @@
+=== seed 42 ===
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+[transformers] `torch_dtype` is deprecated! Use `dtype` instead!
+Loading weights:   0%|          | 0/390 [00:00<?, ?it/s]Loading weights: 100%|██████████| 390/390 [00:00<00:00, 5337.34it/s]
+[transformers] [1mDebertaV2Model LOAD REPORT[0m from: microsoft/deberta-v3-large
+Key                                     | Status     |  | 
+----------------------------------------+------------+--+-
+mask_predictions.classifier.weight      | UNEXPECTED |  | 
+lm_predictions.lm_head.LayerNorm.bias   | UNEXPECTED |  | 
+mask_predictions.classifier.bias        | UNEXPECTED |  | 
+lm_predictions.lm_head.dense.weight     | UNEXPECTED |  | 
+lm_predictions.lm_head.bias             | UNEXPECTED |  | 
+lm_predictions.lm_head.dense.bias       | UNEXPECTED |  | 
+mask_predictions.LayerNorm.weight       | UNEXPECTED |  | 
+mask_predictions.dense.bias             | UNEXPECTED |  | 
+mask_predictions.LayerNorm.bias         | UNEXPECTED |  | 
+mask_predictions.dense.weight           | UNEXPECTED |  | 
+lm_predictions.lm_head.LayerNorm.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+[epoch 000] loss=1.5504 val_weighted_f1=0.4997 val_macro_f1=0.2992 time=167.9s lr=2.00e-04 per_class_f1={'neutral': 0.727, 'joy': 0.57, 'sadness': 0.018, 'anger': 0.33, 'surprise': 0.449, 'fear': 0.0, 'disgust': 0.0}
+[epoch 001] loss=1.0854 val_weighted_f1=0.6078 val_macro_f1=0.4104 time=167.6s lr=1.78e-04 per_class_f1={'neutral': 0.767, 'joy': 0.625, 'sadness': 0.305, 'anger': 0.516, 'surprise': 0.66, 'fear': 0.0, 'disgust': 0.0}
+[epoch 002] loss=0.9678 val_weighted_f1=0.6250 val_macro_f1=0.4262 time=167.9s lr=1.56e-04 per_class_f1={'neutral': 0.784, 'joy': 0.642, 'sadness': 0.387, 'anger': 0.498, 'surprise': 0.672, 'fear': 0.0, 'disgust': 0.0}
+[epoch 003] loss=0.8990 val_weighted_f1=0.6255 val_macro_f1=0.4486 time=169.5s lr=1.33e-04 per_class_f1={'neutral': 0.779, 'joy': 0.602, 'sadness': 0.392, 'anger': 0.527, 'surprise': 0.681, 'fear': 0.0, 'disgust': 0.16}
+[epoch 004] loss=0.8481 val_weighted_f1=0.6400 val_macro_f1=0.4830 time=169.6s lr=1.11e-04 per_class_f1={'neutral': 0.779, 'joy': 0.642, 'sadness': 0.445, 'anger': 0.531, 'surprise': 0.657, 'fear': 0.16, 'disgust': 0.167}
+[epoch 005] loss=0.7987 val_weighted_f1=0.6448 val_macro_f1=0.4847 time=170.0s lr=8.89e-05 per_class_f1={'neutral': 0.777, 'joy': 0.641, 'sadness': 0.477, 'anger': 0.54, 'surprise': 0.676, 'fear': 0.133, 'disgust': 0.148}
+[epoch 006] loss=0.7509 val_weighted_f1=0.6426 val_macro_f1=0.4775 time=168.2s lr=6.67e-05 per_class_f1={'neutral': 0.79, 'joy': 0.623, 'sadness': 0.429, 'anger': 0.54, 'surprise': 0.671, 'fear': 0.16, 'disgust': 0.13}
+[epoch 007] loss=0.7222 val_weighted_f1=0.6371 val_macro_f1=0.4740 time=169.9s lr=4.44e-05 per_class_f1={'neutral': 0.779, 'joy': 0.623, 'sadness': 0.398, 'anger': 0.566, 'surprise': 0.659, 'fear': 0.16, 'disgust': 0.133}
+[epoch 008] loss=0.6924 val_weighted_f1=0.6381 val_macro_f1=0.4813 time=168.1s lr=2.22e-05 per_class_f1={'neutral': 0.78, 'joy': 0.621, 'sadness': 0.406, 'anger': 0.537, 'surprise': 0.673, 'fear': 0.218, 'disgust': 0.133}
+[trainer] early stopping at epoch 8 (patience=3)
+[done] run_name=deberta_large_text_anchor_seed42 test_weighted_f1=0.6596 test_macro_f1=0.4733 test_accuracy=0.6693 all_7_classes_nonzero=True best_epoch=5 avg_epoch_time_sec=168.75
+=== seed 1337 ===
+[transformers] `torch_dtype` is deprecated! Use `dtype` instead!
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/390 [00:00<?, ?it/s]Loading weights: 100%|██████████| 390/390 [00:00<00:00, 5201.42it/s]
+[transformers] [1mDebertaV2Model LOAD REPORT[0m from: microsoft/deberta-v3-large
+Key                                     | Status     |  | 
+----------------------------------------+------------+--+-
+lm_predictions.lm_head.LayerNorm.bias   | UNEXPECTED |  | 
+lm_predictions.lm_head.dense.bias       | UNEXPECTED |  | 
+lm_predictions.lm_head.dense.weight     | UNEXPECTED |  | 
+lm_predictions.lm_head.LayerNorm.weight | UNEXPECTED |  | 
+lm_predictions.lm_head.bias             | UNEXPECTED |  | 
+mask_predictions.dense.weight           | UNEXPECTED |  | 
+mask_predictions.LayerNorm.weight       | UNEXPECTED |  | 
+mask_predictions.classifier.bias        | UNEXPECTED |  | 
+mask_predictions.dense.bias             | UNEXPECTED |  | 
+mask_predictions.classifier.weight      | UNEXPECTED |  | 
+mask_predictions.LayerNorm.bias         | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+[epoch 000] loss=1.5774 val_weighted_f1=0.4922 val_macro_f1=0.2879 time=169.8s lr=2.00e-04 per_class_f1={'neutral': 0.736, 'joy': 0.571, 'sadness': 0.0, 'anger': 0.347, 'surprise': 0.361, 'fear': 0.0, 'disgust': 0.0}
+[epoch 001] loss=1.0716 val_weighted_f1=0.6105 val_macro_f1=0.4217 time=168.5s lr=1.78e-04 per_class_f1={'neutral': 0.771, 'joy': 0.611, 'sadness': 0.323, 'anger': 0.536, 'surprise': 0.637, 'fear': 0.0, 'disgust': 0.074}
+[epoch 002] loss=0.9560 val_weighted_f1=0.6258 val_macro_f1=0.4493 time=169.3s lr=1.56e-04 per_class_f1={'neutral': 0.78, 'joy': 0.625, 'sadness': 0.402, 'anger': 0.517, 'surprise': 0.655, 'fear': 0.0, 'disgust': 0.167}
+[epoch 003] loss=0.8880 val_weighted_f1=0.6356 val_macro_f1=0.4653 time=169.7s lr=1.33e-04 per_class_f1={'neutral': 0.782, 'joy': 0.637, 'sadness': 0.419, 'anger': 0.543, 'surprise': 0.657, 'fear': 0.048, 'disgust': 0.171}
+[epoch 004] loss=0.8306 val_weighted_f1=0.6336 val_macro_f1=0.4652 time=168.6s lr=1.11e-04 per_class_f1={'neutral': 0.784, 'joy': 0.624, 'sadness': 0.439, 'anger': 0.492, 'surprise': 0.671, 'fear': 0.154, 'disgust': 0.093}
+[epoch 005] loss=0.7790 val_weighted_f1=0.6413 val_macro_f1=0.4990 time=169.5s lr=8.89e-05 per_class_f1={'neutral': 0.782, 'joy': 0.632, 'sadness': 0.428, 'anger': 0.527, 'surprise': 0.649, 'fear': 0.281, 'disgust': 0.195}
+[epoch 006] loss=0.7347 val_weighted_f1=0.6367 val_macro_f1=0.4782 time=169.6s lr=6.67e-05 per_class_f1={'neutral': 0.777, 'joy': 0.608, 'sadness': 0.434, 'anger': 0.544, 'surprise': 0.673, 'fear': 0.154, 'disgust': 0.158}
+[epoch 007] loss=0.6980 val_weighted_f1=0.6365 val_macro_f1=0.4948 time=168.9s lr=4.44e-05 per_class_f1={'neutral': 0.773, 'joy': 0.591, 'sadness': 0.453, 'anger': 0.541, 'surprise': 0.651, 'fear': 0.321, 'disgust': 0.133}
+[epoch 008] loss=0.6625 val_weighted_f1=0.6434 val_macro_f1=0.4991 time=169.0s lr=2.22e-05 per_class_f1={'neutral': 0.784, 'joy': 0.603, 'sadness': 0.447, 'anger': 0.539, 'surprise': 0.663, 'fear': 0.295, 'disgust': 0.163}
+[epoch 009] loss=0.6427 val_weighted_f1=0.6448 val_macro_f1=0.5018 time=168.5s lr=0.00e+00 per_class_f1={'neutral': 0.786, 'joy': 0.599, 'sadness': 0.469, 'anger': 0.542, 'surprise': 0.653, 'fear': 0.29, 'disgust': 0.174}
+[done] run_name=deberta_large_text_anchor_seed1337 test_weighted_f1=0.6622 test_macro_f1=0.5092 test_accuracy=0.6659 all_7_classes_nonzero=True best_epoch=9 avg_epoch_time_sec=169.14
+=== seed 2024 ===
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+[transformers] `torch_dtype` is deprecated! Use `dtype` instead!
+Loading weights:   0%|          | 0/390 [00:00<?, ?it/s]Loading weights: 100%|██████████| 390/390 [00:00<00:00, 5672.97it/s]
+[transformers] [1mDebertaV2Model LOAD REPORT[0m from: microsoft/deberta-v3-large
+Key                                     | Status     |  | 
+----------------------------------------+------------+--+-
+lm_predictions.lm_head.dense.weight     | UNEXPECTED |  | 
+lm_predictions.lm_head.LayerNorm.weight | UNEXPECTED |  | 
+lm_predictions.lm_head.LayerNorm.bias   | UNEXPECTED |  | 
+mask_predictions.LayerNorm.weight       | UNEXPECTED |  | 
+mask_predictions.dense.bias             | UNEXPECTED |  | 
+mask_predictions.classifier.weight      | UNEXPECTED |  | 
+mask_predictions.LayerNorm.bias         | UNEXPECTED |  | 
+lm_predictions.lm_head.dense.bias       | UNEXPECTED |  | 
+mask_predictions.dense.weight           | UNEXPECTED |  | 
+mask_predictions.classifier.bias        | UNEXPECTED |  | 
+lm_predictions.lm_head.bias             | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+[epoch 000] loss=1.6345 val_weighted_f1=0.3764 val_macro_f1=0.1807 time=169.6s lr=2.00e-04 per_class_f1={'neutral': 0.701, 'joy': 0.218, 'sadness': 0.0, 'anger': 0.298, 'surprise': 0.048, 'fear': 0.0, 'disgust': 0.0}
+[epoch 001] loss=1.1621 val_weighted_f1=0.5834 val_macro_f1=0.3866 time=170.1s lr=1.78e-04 per_class_f1={'neutral': 0.77, 'joy': 0.562, 'sadness': 0.357, 'anger': 0.474, 'surprise': 0.544, 'fear': 0.0, 'disgust': 0.0}
+[epoch 002] loss=0.9932 val_weighted_f1=0.6264 val_macro_f1=0.4516 time=168.8s lr=1.56e-04 per_class_f1={'neutral': 0.776, 'joy': 0.609, 'sadness': 0.434, 'anger': 0.544, 'surprise': 0.638, 'fear': 0.0, 'disgust': 0.16}
+[epoch 003] loss=0.9196 val_weighted_f1=0.6156 val_macro_f1=0.4312 time=168.6s lr=1.33e-04 per_class_f1={'neutral': 0.773, 'joy': 0.615, 'sadness': 0.412, 'anger': 0.52, 'surprise': 0.615, 'fear': 0.0, 'disgust': 0.083}
+[epoch 004] loss=0.8576 val_weighted_f1=0.6256 val_macro_f1=0.4576 time=169.1s lr=1.11e-04 per_class_f1={'neutral': 0.78, 'joy': 0.646, 'sadness': 0.392, 'anger': 0.475, 'surprise': 0.665, 'fear': 0.045, 'disgust': 0.2}
+[epoch 005] loss=0.8133 val_weighted_f1=0.6259 val_macro_f1=0.4586 time=168.0s lr=8.89e-05 per_class_f1={'neutral': 0.767, 'joy': 0.64, 'sadness': 0.453, 'anger': 0.519, 'surprise': 0.637, 'fear': 0.0, 'disgust': 0.194}
+[epoch 006] loss=0.7681 val_weighted_f1=0.6404 val_macro_f1=0.4814 time=168.6s lr=6.67e-05 per_class_f1={'neutral': 0.774, 'joy': 0.642, 'sadness': 0.423, 'anger': 0.572, 'surprise': 0.657, 'fear': 0.12, 'disgust': 0.182}
+[epoch 007] loss=0.7295 val_weighted_f1=0.6310 val_macro_f1=0.4850 time=168.6s lr=4.44e-05 per_class_f1={'neutral': 0.761, 'joy': 0.642, 'sadness': 0.431, 'anger': 0.514, 'surprise': 0.663, 'fear': 0.179, 'disgust': 0.205}
+[epoch 008] loss=0.6999 val_weighted_f1=0.6348 val_macro_f1=0.4859 time=168.9s lr=2.22e-05 per_class_f1={'neutral': 0.772, 'joy': 0.617, 'sadness': 0.431, 'anger': 0.534, 'surprise': 0.664, 'fear': 0.16, 'disgust': 0.222}
+[epoch 009] loss=0.6789 val_weighted_f1=0.6388 val_macro_f1=0.4835 time=166.8s lr=0.00e+00 per_class_f1={'neutral': 0.769, 'joy': 0.633, 'sadness': 0.445, 'anger': 0.547, 'surprise': 0.677, 'fear': 0.122, 'disgust': 0.19}
+[done] run_name=deberta_large_text_anchor_seed2024 test_weighted_f1=0.6567 test_macro_f1=0.4806 test_accuracy=0.6651 all_7_classes_nonzero=True best_epoch=8 avg_epoch_time_sec=168.69

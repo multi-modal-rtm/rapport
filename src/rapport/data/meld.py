@@ -107,6 +107,7 @@ class MELDCachedDataset(_MELDDialogueDatasetBase):
         text_cache_subdir: str = "text",
         load_av_tokens: bool = False,
         load_text_logits: bool = False,
+        text_feature_dim: int | None = None,
     ):
         """`text_cache_subdir` selects which cached text representation to load
         for the "text" modality -- "text" (default) is the frozen, non-contextual
@@ -125,6 +126,12 @@ class MELDCachedDataset(_MELDDialogueDatasetBase):
         `load_text_logits=True` additionally loads the frozen Phase T text
         classifier's own 7-d logits (cache_dir/{text_cache_subdir}_logits/...)
         for Phase N4-R's residual redesign (spec v1.1, docs/PHASE_N4R.md).
+
+        `text_feature_dim` (default None -> FEATURE_DIM, i.e. 768, unchanged
+        behavior) overrides the expected width of the text_feat cache only --
+        video/audio stay validated at FEATURE_DIM regardless. Second-encoder
+        replication (docs/PREREG_DeBERTa-v3-large.md) passes 1024 here for
+        DeBERTa-v3-large's text caches.
         """
         super().__init__(index_path)
         self.cache_dir = Path(cache_dir)
@@ -132,8 +139,10 @@ class MELDCachedDataset(_MELDDialogueDatasetBase):
         self.text_cache_subdir = text_cache_subdir
         self.load_av_tokens = load_av_tokens
         self.load_text_logits = load_text_logits
+        self.text_feature_dim = self.FEATURE_DIM if text_feature_dim is None else text_feature_dim
 
-    def _load_feature(self, modality: str, dialogue_id: int, utterance_id: int) -> torch.Tensor:
+    def _load_feature(self, modality: str, dialogue_id: int, utterance_id: int, expected_dim: int | None = None) -> torch.Tensor:
+        expected_dim = self.FEATURE_DIM if expected_dim is None else expected_dim
         path = self.cache_dir / modality / self.split / f"dia{dialogue_id}_utt{utterance_id}.pt"
         if not path.exists():
             raise FileNotFoundError(
@@ -141,8 +150,8 @@ class MELDCachedDataset(_MELDDialogueDatasetBase):
                 "the Phase 3 feature-extraction pass (frozen backbones) to have run first."
             )
         feat = torch.load(path, weights_only=True)
-        if tuple(feat.shape) != (self.FEATURE_DIM,):
-            raise ValueError(f"expected shape ({self.FEATURE_DIM},), got {tuple(feat.shape)} at {path}")
+        if tuple(feat.shape) != (expected_dim,):
+            raise ValueError(f"expected shape ({expected_dim},), got {tuple(feat.shape)} at {path}")
         return feat
 
     def _load_raw(self, modality: str, dialogue_id: int, utterance_id: int) -> torch.Tensor:
@@ -173,7 +182,11 @@ class MELDCachedDataset(_MELDDialogueDatasetBase):
         for row in dialogue.itertuples(index=False):
             video_feat.append(self._load_feature("video", row.dialogue_id, row.utterance_id))
             audio_feat.append(self._load_feature("audio", row.dialogue_id, row.utterance_id))
-            text_feat.append(self._load_feature(self.text_cache_subdir, row.dialogue_id, row.utterance_id))
+            text_feat.append(
+                self._load_feature(
+                    self.text_cache_subdir, row.dialogue_id, row.utterance_id, expected_dim=self.text_feature_dim
+                )
+            )
             if self.load_av_tokens:
                 video_tokens.append(self._load_tokens("video_tokens", row.dialogue_id, row.utterance_id))
                 audio_tokens.append(self._load_tokens("audio_tokens", row.dialogue_id, row.utterance_id))
