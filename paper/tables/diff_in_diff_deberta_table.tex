@@ -1,0 +1,13 @@
+\begin{table*}[t]
+\centering
+\caption{Second-encoder replication (DeBERTa-v3-large): paired residual gain (Full stack minus text-only anchor, test weighted F1) under frozen vs.\ fine-tuned text representations, and the regime difference-in-differences (independent-groups percentile bootstrap, $n{=}100{,}000$ resamples), 95\% interval. RoBERTa-base row reproduced from Table~\ref{tab:diff-in-diff} for reference, unchanged.}
+\label{tab:diff-in-diff-deberta-large}
+\begin{tabular}{lccc}
+\toprule
+encoder & frozen gain (n=3) & fine-tuned gain (n=3) & DiD [95\% CI] \\
+\midrule
+RoBERTa-base (Table~\ref{tab:diff-in-diff}) & +0.0356 avg. & $-$0.0088 avg. (n=7) & +0.0444 [+0.0347, +0.0560] \\
+DeBERTa-v3-large & +0.0227 & +0.0039 & +0.0188 [+0.0144, +0.0239] \\
+\bottomrule
+\end{tabular}
+\end{table*}

@@ -18,7 +18,7 @@ mean), and repeats B times; the 2.5th/97.5th percentiles of that
 distribution are the 95% interval. The point estimate is the plug-in
 statistic on the real (non-resampled) data: mean(frozen diffs) -
 mean(fine-tuned diffs). A secondary DiD against the k=0 fine-tuned endpoint
-(n=5) is reported alongside as a robustness check -- the paper's headline
+is reported alongside as a robustness check -- the paper's headline
 fine-tuned comparator is the locked recipe (k=8).
 
 Reads only outputs/subsumption_curve_data.json -- no new stored numbers,
@@ -100,7 +100,7 @@ def main() -> None:
     md.append(
         "Independent-groups percentile bootstrap. The frozen-regime paired per-seed "
         "gains (`bridging.paired_diffs`, n=3) and the fine-tuned-regime paired "
-        "per-seed gains (`paired_n7_test.{k}.diffs`, n=7 at k=8 / n=5 at k=0) are two "
+        "per-seed gains (`paired_n7_test.{k}.diffs`, n=7 at both k=8 and k=0) are two "
         "**independent** samples -- overlapping seed *values* across regimes (e.g. "
         "both include a seed-42 run) do not make them paired runs, since a frozen "
         "seed-42 run and a fine-tuned seed-42 run share nothing but an RNG "
@@ -128,7 +128,7 @@ def main() -> None:
     )
     md.append(
         f"As a robustness check against the context-free fine-tuned endpoint (k=0, "
-        f"n=5) instead of the locked recipe: DiD = **{secondary['point_estimate']:+.4f}**, "
+        f"n={secondary['n_finetuned']}) instead of the locked recipe: DiD = **{secondary['point_estimate']:+.4f}**, "
         f"95% CI **[{secondary['ci_lo']:+.4f}, {secondary['ci_hi']:+.4f}]**, "
         f"{'excludes' if secondary['excludes_zero'] else 'does NOT exclude'} zero. "
         f"Both comparators agree in direction and in excluding zero.\n"
@@ -170,7 +170,7 @@ def main() -> None:
     md.append("## Raw inputs (for audit)\n")
     md.append(f"- Frozen paired diffs (n=3): `{frozen_diffs}`\n")
     md.append(f"- Fine-tuned k=8 paired diffs (n=7): `{finetuned_k8_diffs}`\n")
-    md.append(f"- Fine-tuned k=0 paired diffs (n=5): `{finetuned_k0_diffs}`\n")
+    md.append(f"- Fine-tuned k=0 paired diffs (n={len(finetuned_k0_diffs)}): `{finetuned_k0_diffs}`\n")
     md.append(
         "\n**Caveat, stated plainly**: the frozen-regime sample is only n=3 seeds, "
         "so its bootstrap resampling draws from just 3 distinct values (10 possible "

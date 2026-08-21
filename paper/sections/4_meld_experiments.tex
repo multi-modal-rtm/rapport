@@ -4,7 +4,7 @@
 \section{MELD Experiments}
 \label{sec:meld}
 
-This section establishes the paper's central empirical claim on MELD: conversation-graph machinery yields real, replicable gains when the utterance encoder is frozen, and those gains vanish (indeed, reverse in sign) once the encoder is fine-tuned, even when the fine-tuned encoder sees no conversational context at all. The argument proceeds in the order the evidence demands: the experimental setup and the feature landscape any architecture must work within (\ref{sec:meld-setup}), the frozen-feature regime in which the literature's premise is reproduced (\ref{sec:meld-frozen}), the fine-tuned regime in which it fails (\ref{sec:meld-finetuned}), the context-window sweep separating the effect of fine-tuning from the effect of contextual input (\ref{sec:k-sweep}), and the mechanism analysis explaining why scratch-retrained ablations overstate the harm that residual attribution measures precisely (\ref{sec:meld-mechanism}).
+This section establishes the paper's central empirical claim on MELD: conversation-graph machinery yields real, replicable gains when the utterance encoder is frozen, and those gains no longer hold (dropping to null or slightly negative for RoBERTa-base) once the encoder is fine-tuned, even when the fine-tuned encoder sees no conversational context at all. The argument proceeds in the order the evidence demands: the experimental setup and the feature landscape any architecture must work within (\ref{sec:meld-setup}), the frozen-feature regime in which the literature's premise is reproduced (\ref{sec:meld-frozen}), the fine-tuned regime in which it fails (\ref{sec:meld-finetuned}), the context-window sweep separating the effect of fine-tuning from the effect of contextual input (\ref{sec:k-sweep}), a formal significance test of the boundary claim (\ref{sec:diff-in-diff}), the mechanism analysis explaining why scratch-retrained ablations overstate the harm that residual attribution measures precisely (\ref{sec:meld-mechanism}), and a replication check on a second, larger encoder from a different family (\ref{sec:deberta-replication}).
 
 \subsection{Setup and the Feature Landscape}
 \label{sec:meld-setup}
@@ -34,30 +34,37 @@ Under conventional scratch retraining (every configuration trained from random i
 \input{tables/meld_scratch_vs_residual}
 \input{tables/per_class_meld}
 
-The contrast between Sections~\ref{sec:meld-frozen} and~\ref{sec:meld-finetuned} is the boundary claim, measured under uniform methodology: the same components, the same attribution instrument, the same recipe, the same seeds. The result is a $+0.036$ contribution on frozen features and a null-to-negative contribution on fine-tuned ones. What changed is the foundation, and on the evidence of Section~\ref{sec:k-sweep}, what matters about the foundation is the fine-tuning itself rather than its contextual input window.
-
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{figures/boundary_figure.pdf}
-\caption{Paired per-seed gain of the Full stack over its own Text-only anchor, MELD, at three points: frozen foundation ($+0.0356$), fine-tuned foundation at context width $k=0$ ($-0.0080$), and fine-tuned foundation at $k=8$, the locked recipe ($-0.0088$). Marker shape (circle vs.\ square) distinguishes the frozen point from the two fine-tuned points independently of color; error bars are one standard deviation across seeds. The gain is positive only on the frozen foundation --- both fine-tuned endpoints are null-to-negative.}
+\caption{Paired per-seed gain of the Full stack over its own Text-only anchor, MELD, at three points: frozen foundation ($+0.0356$), fine-tuned foundation at context width $k=0$ ($-0.0072$), and fine-tuned foundation at $k=8$, the locked recipe ($-0.0088$). Marker shape (circle vs.\ square) distinguishes the frozen point from the two fine-tuned points independently of color; error bars are one standard deviation across seeds. The gain is positive only on the frozen foundation --- both fine-tuned endpoints are null-to-negative.}
 \label{fig:boundary}
 \end{figure}
 
 \subsection{Separating Fine-Tuning from Context: The $k$-Sweep}
 \label{sec:k-sweep}
 
-A natural reading of Section~\ref{sec:meld-finetuned} would be that the contextual input window ($k=8$ preceding utterances) simply pre-empts the graph: the encoder already sees the recent dialogue, so graph-propagated context is redundant. The $k$-sweep tests this reading and finds it insufficient. We retrain the fine-tuned foundation at context widths $k \in \{0, 2, 4, 8\}$ (where $k=0$ is a genuinely context-free but still fine-tuned encoder) and measure the graph stack's paired residual gain at each width, with the endpoints powered to seven seeds (five for the $k=0$ anchor: the $k=0$ text anchor was seed-$42$-only in the original design, and this consolidation pass added the four new seeds it was asked to add, not six) and the interior points reported at one seed as trend indicators only.
+A natural reading of Section~\ref{sec:meld-finetuned} would be that the contextual input window ($k=8$ preceding utterances) simply pre-empts the graph: the encoder already sees the recent dialogue, so graph-propagated context is redundant. The $k$-sweep tests this reading and finds it insufficient. We retrain the fine-tuned foundation at context widths $k \in \{0, 2, 4, 8\}$ (where $k=0$ is a genuinely context-free but still fine-tuned encoder) and measure the graph stack's paired residual gain at each width, with the endpoints powered to seven seeds each and the interior points reported at one seed as trend indicators only.
 
-At $k=8$ the gain is $-0.0088 \pm 0.0072$ (negative, exceeding one standard deviation); at $k=0$ it is $-0.0080 \pm 0.0136$ (indistinguishable from zero). Figure~\ref{fig:k-sweep} displays the curve with the endpoint error bars emphasized. The decisive cell is $k=0$: a fine-tuned encoder that has never seen a single context utterance already leaves nothing for the graph stack to add, while the \textit{frozen} encoder of Section~\ref{sec:meld-frozen}, equally context-free, left $+0.036$ on the table. Context windows are therefore not the operative variable; task-adaptation of the representation is. Whatever conversational information the graph machinery propagates on frozen features, a fine-tuned encoder either encodes it, obviates the need for it, or renders it inaccessible to the stack, and the mechanism analysis below favors a specific interpretation.
+At $k=8$ the gain is $-0.0088 \pm 0.0072$ (negative, exceeding one standard deviation); at $k=0$ it is $-0.0072 \pm 0.0128$ (indistinguishable from zero). Figure~\ref{fig:k-sweep} displays the curve with the endpoint error bars emphasized. The decisive cell is $k=0$: a fine-tuned encoder that has never seen a single context utterance already leaves nothing for the graph stack to add, while the \textit{frozen} encoder of Section~\ref{sec:meld-frozen}, equally context-free, left $+0.036$ on the table. Context windows are therefore not the operative variable; task-adaptation of the representation is. Whatever conversational information the graph machinery propagates on frozen features, a fine-tuned encoder either encodes it, obviates the need for it, or renders it inaccessible to the stack, and the mechanism analysis below favors a specific interpretation.
 
 \input{tables/k_sweep_endpoints}
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{figures/k_sweep_curve.pdf}
-\caption{MELD context-window sweep: paired per-seed gain of the Full stack over its own Text-only anchor (y-axis, ``Paired gain in weighted F1'') at each context window size $k$ (x-axis, ``Context window size $k$''), $k \in \{0,2,4,8\}$. Endpoints ($k=0$, $k=8$; square markers with error bars) are multi-seed, $n=5$ and $n=7$ respectively, error bars one standard deviation; interior points ($k=2$, $k=4$; light circle markers, no error bars) are single-seed trend indicators only, de-emphasized rather than treated as estimates.}
+\caption{MELD context-window sweep: paired per-seed gain of the Full stack over its own Text-only anchor (y-axis, ``Paired gain in weighted F1'') at each context window size $k$ (x-axis, ``Context window size $k$''), $k \in \{0,2,4,8\}$. Endpoints ($k=0$, $k=8$; square markers with error bars) are multi-seed, $n=7$ and $n=7$ respectively, error bars one standard deviation; interior points ($k=2$, $k=4$; light circle markers, no error bars) are single-seed trend indicators only, de-emphasized rather than treated as estimates.}
 \label{fig:k-sweep}
 \end{figure}
+
+\subsection{A Formal Test: Difference-in-Differences}
+\label{sec:diff-in-diff}
+
+The contrast between Sections~\ref{sec:meld-frozen} and~\ref{sec:meld-finetuned} is the boundary claim, measured under uniform methodology: the same components, the same attribution instrument, the same recipe, the same seeds. The result is a $+0.036$ contribution on frozen features and a null-to-negative contribution on fine-tuned ones. What changed is the foundation, and on the evidence of Section~\ref{sec:k-sweep}, what matters about the foundation is the fine-tuning itself rather than its contextual input window.
+
+This contrast can be tested directly rather than read off two tables. We compute the difference between the frozen-regime gain and the fine-tuned-regime gain using an independent-groups bootstrap. The result is $+0.0444$, with a 95\% confidence interval of $[+0.0347, +0.0560]$, which excludes zero. This is the paper's formal significance claim, and it does not require any single fine-tuned gain to be significant on its own. It requires only that the frozen-regime gain is reliably larger than the fine-tuned one, which the interval confirms. The frozen side rests on three seeds, so the interval is lower in resolution than our seven-seed fine-tuned results, but it excludes zero under both fine-tuned comparators.
+
+\input{tables/diff_in_diff_table}
 
 \subsection{Mechanism: Why Scratch Ablations Overstate, and What the Stack Actually Learns}
 \label{sec:meld-mechanism}
@@ -72,3 +79,10 @@ Three analyses localize the mechanism. First, overfitting: under scratch retrain
 \end{figure*}
 
 The section's conclusion, stated plainly: on MELD, the value of conversation-graph machinery is conditional on a representational deficiency of the foundation beneath it. Reproduce the deficiency and the gains reproduce; repair it (by fine-tuning alone, before any contextual input) and the gains vanish under the most careful attribution we can construct. Section~\ref{sec:iemocap} asks whether a corpus built of long, emotionally volatile dyadic interactions (the pre-registered best case for relationship modeling) changes the verdict.
+
+\subsection{Replication Across Encoder Families}
+\label{sec:deberta-replication}
+
+To test whether the fine-tuning boundary reflects RoBERTa-base's specific capacity rather than a general property of fine-tuned text representations, we pre-registered and ran the same frozen-vs-fine-tuned residual-gain comparison on \texttt{microsoft/deberta-v3-large} ($24$ layers, hidden $1024$, $\sim 3.5\times$ RoBERTa-base's parameter count, a different attention architecture entirely). The frozen-regime gain remains substantial and the difference-in-differences remains positive and excludes zero ($+0.0188$, 95\% CI $[+0.0144, +0.0239]$), replicating the paper's core interaction claim. However, the fine-tuned-regime gain itself, while an order of magnitude smaller than the frozen-regime gain ($+0.0039$ vs.\ $+0.0227$), was small but consistently positive across all $3$ seeds rather than null-to-negative as under RoBERTa-base --- by our pre-registered reading rule this means the stronger claim (``the graph stack adds no value on any fine-tuned foundation'') does not replicate unconditionally, and we narrow the paper's scope claim accordingly. We note this fine-tuned-regime result rests on only $3$ seeds, an order of magnitude smaller effect than the frozen-regime one, and should be weighed with correspondingly less confidence than the paper's primary $n{=}7$ RoBERTa-base result.
+
+\input{tables/diff_in_diff_deberta_table}

@@ -1,0 +1,13 @@
+\begin{table*}[t]
+\centering
+\caption{Non-zero-init control: paired gain (Full stack vs.\ Text-only anchor) on the fine-tuned MELD foundation, exact-zero-init vs.\ a small-scale random ($\mathcal{N}(0, 0.02^2)$) initialization of $W_{\text{out}}$ and the audio/video fusion blocks.}
+\label{tab:nonzero-init-paired-gain}
+\begin{tabular}{lccc}
+\toprule
+condition & Full stack mean & paired gain & $n$ \\
+\midrule
+zero-init (original) & 0.6344 & $-0.0060 \pm 0.0098$ & 3 \\
+non-zero-init (control) & 0.6383 & $-0.0020 \pm 0.0044$ & 3 \\
+\bottomrule
+\end{tabular}
+\end{table*}

@@ -1,0 +1,15 @@
+\begin{table*}[t]
+\centering
+\caption{Epoch-0 gradient norms (first 5 training batches, pre-clip, mean $\pm$ std) on $W_{\text{out}}$ (the residual classifier) and the audio/video fusion blocks, zero-init vs.\ non-zero-init.}
+\label{tab:nonzero-init-gradients}
+\begin{tabular}{lcccc}
+\toprule
+condition & seed & $\lVert\nabla W_{\text{out}}\rVert$ & $\lVert\nabla \text{fusion}_{AV}\rVert$ & $\lVert\nabla \text{total}\rVert$ \\
+\midrule
+zero-init & 42 & $0.1719 \pm 0.0287$ & $0.0596 \pm 0.0297$ & $0.2627 \pm 0.0438$ \\
+non-zero-init & 42 & $0.2156 \pm 0.0344$ & $0.1012 \pm 0.0081$ & $0.3750 \pm 0.0392$ \\
+non-zero-init & 1337 & $0.2245 \pm 0.0591$ & $0.1071 \pm 0.0139$ & $0.3950 \pm 0.0689$ \\
+non-zero-init & 2024 & $0.1839 \pm 0.0221$ & $0.0999 \pm 0.0125$ & $0.3532 \pm 0.0396$ \\
+\bottomrule
+\end{tabular}
+\end{table*}

@@ -136,7 +136,7 @@ reference, unchanged.}
 \toprule
 encoder & frozen gain (n=3) & fine-tuned gain (n=3) & DiD [95\% CI] \\
 \midrule
-RoBERTa-base (Table~\ref{tab:diff-in-diff}) & +0.0477 avg. & $-$0.0088 avg. (n=7) & +0.0444 [+0.0347, +0.0560] \\
+RoBERTa-base (Table~\ref{tab:diff-in-diff}) & +0.0356 avg. & $-$0.0088 avg. (n=7) & +0.0444 [+0.0347, +0.0560] \\
 DeBERTa-v3-large & +0.0227 & +0.0039 & +0.0188 [+0.0144, +0.0239] \\
 \bottomrule
 \end{tabular}
